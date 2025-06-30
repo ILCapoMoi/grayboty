@@ -1,0 +1,539 @@
+"""
+GrayPointsBot – Discord bot for tracking Training Points (TP) and Mission Points (MP)
+===================================================================
+Slash commands (all in English)
+------------------------------
+* `/showprofile [member]` – shows TP & MP. If *member* omitted, shows yourself.
+* `/addtp` – add training points with automatic weighting:
+    * **mvp**   → each mention +3 TP
+    * **promo** → each mention +2 TP
+    * **attended** → each mention +1 TP
+    * **rollcall** → link for bookkeeping (stored in the confirmation msg only)
+* `/addmp` – add mission points:
+    * **member** → mention (one user)
+    * **missionpoints** → integer ≥ 1
+    * **rollcall** → link for bookkeeping
+* `/setup` *(admins only)* – manage which roles can use `/addtp` & `/addmp`:
+    * `/setup addrole <role>`
+    * `/setup removerole <role>`
+    * `/setup list`
+
+All confirmation messages auto‑delete after 10 s to keep channels tidy.
+
+File structure & persistence
+---------------------------
+```
+GrayBot/
+├─ bot_points.py    ← this script
+├─ points.json      ← {"guild_id": {"user_id": {"tp": int, "mp": int}}}
+├─ config.json      ← {"guild_id": [role_id, ...]}
+└─ .env             ← DISCORD_TOKEN=xxxxx
+```
+
+Requirements
+------------
+* Python ≥ 3.10
+* `pip install -U "discord.py[voice]>=2.4.0"`
+
+-----------------------------------------------------
+"""
+# from dotenv import load_dotenv
+# load_dotenv()
+
+import os
+import re
+import json
+import asyncio
+from pathlib import Path
+from typing import Dict, List, cast, Optional
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+from flask import Flask
+from threading import Thread
+
+# ------------------- Paths -------------------
+BASE = Path(__file__).parent
+POINTS_FILE = BASE / "points.json"
+CONFIG_FILE = BASE / "config.json"
+
+# ------------------- Helpers -----------------
+
+
+def _load(path: Path, default):
+    if path.exists():
+        with path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    return default
+
+
+def _save(path: Path, data):
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+points_db: Dict[str,
+                Dict[str,
+                     Dict[str,
+                          int]]] = _load(POINTS_FILE,
+                                         {})  # guild_id -> user_id -> {tp, mp}
+config_db: Dict[str, List[int]] = _load(CONFIG_FILE,
+                                        {})  # guild_id -> [role_ids]
+
+
+def get_user_data(guild_id: int, user_id: int):
+    gid, uid = str(guild_id), str(user_id)
+    points_db.setdefault(gid, {})
+    points_db[gid].setdefault(uid, {"tp": 0, "mp": 0})
+    return points_db[gid][uid]
+
+
+def add_points(guild_id: int, user_id: int, category: str, amount: int):
+    data = get_user_data(guild_id, user_id)
+    data[category] += amount
+    _save(POINTS_FILE, points_db)
+    return data[category]
+
+
+def allowed_roles(guild_id: int) -> List[int]:
+    return config_db.get(str(guild_id), [])
+
+
+def save_config():
+    _save(CONFIG_FILE, config_db)
+
+
+# ------------------- Bot ---------------------
+intents = discord.Intents.default()
+intents.members = True
+intents.message_content = True
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+# ------------------- Permission --------------
+
+
+def has_permission(member: discord.Member):
+    return any(role.id in allowed_roles(member.guild.id)
+               for role in member.roles)
+
+
+# ------------------- /showprofile ------------
+
+
+@bot.tree.command(name="showprofile",
+                  description="Show Training & Mission Points")
+@app_commands.describe(member="Member to view; leave empty for yourself")
+async def showprofile(interaction: discord.Interaction,
+                      member: discord.Member | None = None):
+
+    if member is None:
+        if interaction.guild:
+            member = interaction.guild.get_member(interaction.user.id)
+        else:
+            member = cast(discord.Member, interaction.user)
+    elif isinstance(member,
+                    discord.User) and not isinstance(member, discord.Member):
+        if interaction.guild:
+            member = interaction.guild.get_member(member.id)
+        else:
+            member = cast(discord.Member, member)
+
+    if member is None:
+        await interaction.response.send_message("Member not found.",
+                                                ephemeral=True)
+        return
+
+    guild_id = interaction.guild.id if interaction.guild is not None else 0
+    data = get_user_data(guild_id, member.id)
+    embed = discord.Embed(title=f"Profile – {member.display_name}")
+    embed.add_field(name="Training Points", value=str(data["tp"]))
+    embed.add_field(name="Mission Points", value=str(data["mp"]))
+
+    await interaction.response.defer(ephemeral=False)
+    msg = await interaction.followup.send(embed=embed)
+
+    if msg is not None:
+        msg_to_delete = cast(discord.Message, msg)
+        await asyncio.sleep(15)
+        try:
+            await msg_to_delete.delete()
+        except discord.Forbidden:
+            pass
+
+
+# ------------------- /addtp ------------------
+
+POINT_VALUES = {"mvp": 3, "promo": 2, "attended": 1}
+MENTION_RE = re.compile(r"<@!?(\d+)>")
+
+
+@bot.tree.command(name="addtp", description="Add Training Points with automatic weighting")
+@app_commands.describe(
+    mvp="Mentions for MVP (+3 each)",
+    promo="Mentions for Promo (+2 each)",
+    attended="Mentions for Attendance (+1 each)",
+    rollcall="Roll‑call message link"
+)
+async def addtp(
+    interaction: discord.Interaction,
+    promo: str,
+    rollcall: str,
+    mvp: str = "",
+    attended: str = "",
+):
+    # Asegurar que member es discord.Member para has_permission
+    member = interaction.user
+    if not isinstance(member, discord.Member) and interaction.guild:
+        member = interaction.guild.get_member(interaction.user.id)
+    if member is None:
+        await interaction.response.send_message(
+            "❌ Cannot check permissions: member not found.", ephemeral=True)
+        return
+
+    member = cast(discord.Member, member)
+    if not has_permission(member):
+        await interaction.response.send_message("❌ You lack permission.",
+                                                ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=False)
+
+    guild = interaction.guild
+    if guild is None:
+        await interaction.followup.send(
+            "❌ This command can only be used inside a server.", ephemeral=True)
+        return
+
+    summary_lines = []
+
+    for field, text in {
+            "mvp": mvp,
+            "promo": promo,
+            "attended": attended
+    }.items():
+        if not text:
+            continue
+        ids = MENTION_RE.findall(text)
+        for uid in ids:
+            member_to_add = guild.get_member(int(uid))
+            if member_to_add is None:
+                continue
+            new_total = add_points(guild.id, member_to_add.id, "tp",
+                                   POINT_VALUES[field])
+            summary_lines.append(
+                f"{member_to_add.mention} +{POINT_VALUES[field]} TP → **{new_total}**"
+            )
+
+    if not summary_lines:
+        await interaction.followup.send("ℹ️ No valid mentions found.")
+        return
+
+    response = "\n".join(summary_lines)
+    if rollcall:
+        response += f"\n🔗 Roll‑call: {rollcall}"
+
+    msg = await interaction.followup.send(response)
+
+    if msg is not None:
+        await asyncio.sleep(10)
+        try:
+            msg_to_delete = cast(discord.Message, msg)
+            await msg_to_delete.delete()
+        except discord.Forbidden:
+            pass  # Ignorar si no tiene permisos para borrar
+
+
+# ------------------- /addmp ------------------
+
+
+@bot.tree.command(name="addmp", description="Add Mission Points to a member")
+@app_commands.describe(
+    member="Member to receive points",
+    missionpoints="Number of points",
+    rollcall="Roll‑call link"
+)
+async def addmp(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    missionpoints: app_commands.Range[int, 1],
+    rollcall: str,
+):
+    # Aseguramos que member que llama es discord.Member para permisos
+    caller = interaction.user
+    if not isinstance(caller, discord.Member) and interaction.guild:
+        caller = interaction.guild.get_member(interaction.user.id)
+    if caller is None:
+        await interaction.response.send_message(
+            "❌ Cannot check permissions: member not found.", ephemeral=True)
+        return
+
+    caller = cast(discord.Member, caller)
+    if not has_permission(caller):
+        await interaction.response.send_message("❌ You lack permission.",
+                                                ephemeral=True)
+        return
+
+    guild = interaction.guild
+    if guild is None:
+        await interaction.response.send_message(
+            "❌ This command can only be used inside a server.", ephemeral=True)
+        return
+
+    new_total = add_points(guild.id, member.id, "mp", missionpoints)
+    content = f"{member.mention} +{missionpoints} MP → **{new_total}**"
+    if rollcall:
+        content += f"\n🔗 Roll‑call: {rollcall}"
+
+    await interaction.response.defer(ephemeral=False)
+    msg = await interaction.followup.send(content)
+
+    if msg is not None:
+        await asyncio.sleep(10)
+        try:
+            msg_to_delete = cast(discord.Message, msg)
+            await msg_to_delete.delete()
+        except discord.Forbidden:
+            pass  # Ignorar si no tiene permisos para borrar
+
+
+# ------------------- /removetp ------------------
+
+@bot.tree.command(name="removetp", description="Remove Training Points from mentioned members")
+@app_commands.describe(
+    member="Members to remove points from (mention one or more)",
+    points="Number of training points to remove from each member"
+)
+async def removetp(
+    interaction: discord.Interaction,
+    member: str,  # texto con menciones, e.g. "<@123> <@456>"
+    points: app_commands.Range[int, 1],
+):
+    caller = interaction.user
+    if not isinstance(caller, discord.Member) and interaction.guild:
+        caller = interaction.guild.get_member(interaction.user.id)
+    if caller is None:
+        await interaction.response.send_message(
+            "❌ Cannot check permissions: member not found.", ephemeral=True)
+        return
+
+    caller = cast(discord.Member, caller)
+    if not has_permission(caller):
+        await interaction.response.send_message("❌ You lack permission.",
+                                                ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=False)
+
+    guild = interaction.guild
+    if guild is None:
+        await interaction.followup.send(
+            "❌ This command can only be used inside a server.", ephemeral=True)
+        return
+
+    ids = MENTION_RE.findall(member)
+    if not ids:
+        await interaction.followup.send("❌ No valid member mentions found.", ephemeral=True)
+        return
+
+    summary_lines = []
+    for uid in ids:
+        member_to_remove = guild.get_member(int(uid))
+        if member_to_remove is None:
+            continue
+        new_total = add_points(guild.id, member_to_remove.id, "tp", -points)
+        summary_lines.append(
+            f"{member_to_remove.mention} -{points} TP → **{new_total}**"
+        )
+
+    response = "\n".join(summary_lines)
+    msg = await interaction.followup.send(response)
+
+    if msg is not None:
+        await asyncio.sleep(10)
+        try:
+            msg_to_delete = cast(discord.Message, msg)
+            await msg_to_delete.delete()
+        except discord.Forbidden:
+            pass
+
+
+# ------------------- /removemp ------------------
+
+@bot.tree.command(name="removemp", description="Remove Mission Points from a member")
+@app_commands.describe(member="Member to remove points from",
+                       missionpoints="Number of points to remove")
+async def removemp(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    missionpoints: app_commands.Range[int, 1],
+):
+    caller = interaction.user
+    if not isinstance(caller, discord.Member) and interaction.guild:
+        caller = interaction.guild.get_member(interaction.user.id)
+    if caller is None:
+        await interaction.response.send_message(
+            "❌ Cannot check permissions: member not found.", ephemeral=True)
+        return
+
+    caller = cast(discord.Member, caller)
+    if not has_permission(caller):
+        await interaction.response.send_message("❌ You lack permission.",
+                                                ephemeral=True)
+        return
+
+    guild = interaction.guild
+    if guild is None:
+        await interaction.response.send_message(
+            "❌ This command can only be used inside a server.", ephemeral=True)
+        return
+
+    new_total = add_points(guild.id, member.id, "mp", -missionpoints)
+    content = f"{member.mention} -{missionpoints} MP → **{new_total}**"
+
+    await interaction.response.defer(ephemeral=False)
+    msg = await interaction.followup.send(content)
+
+    if msg is not None:
+        await asyncio.sleep(10)
+        try:
+            msg_to_delete = cast(discord.Message, msg)
+            await msg_to_delete.delete()
+        except discord.Forbidden:
+            pass
+
+
+# ------------------- /setup group ------------
+
+
+class Setup(app_commands.Group,
+            name="setup",
+            description="Configure roles allowed to add points"):
+
+    async def interaction_check(self,
+                                interaction: discord.Interaction) -> bool:
+        # Asegurarse que user es Member para leer permisos
+        member = interaction.user
+        if not isinstance(member, discord.Member) and interaction.guild:
+            member = interaction.guild.get_member(interaction.user.id)
+        if member is None:
+            await interaction.response.send_message(
+                "❌ Cannot verify permissions.", ephemeral=True)
+            return False
+
+        member = cast(discord.Member, member)
+        if not member.guild_permissions.administrator:
+            await interaction.response.send_message("❌ Admin only.",
+                                                    ephemeral=True)
+            return False
+        return True
+
+    @app_commands.command(name="addrole", description="Authorize a role")
+    async def addrole(self, interaction: discord.Interaction,
+                      role: discord.Role):
+        guild = interaction.guild
+        if guild is None:
+            await interaction.response.send_message(
+                "❌ Command can only be used in a server.", ephemeral=True)
+            return
+
+        gid = str(guild.id)
+        config_db.setdefault(gid, [])
+        if role.id not in config_db[gid]:
+            config_db[gid].append(role.id)
+            save_config()
+            await interaction.response.send_message(
+                f"✅ {role.mention} authorized.")
+        else:
+            await interaction.response.send_message(
+                f"ℹ️ {role.mention} already authorized.", ephemeral=True)
+
+    @app_commands.command(name="removerole",
+                          description="Remove a role from authorization list")
+    async def removerole(self, interaction: discord.Interaction,
+                         role: discord.Role):
+        guild = interaction.guild
+        if guild is None:
+            await interaction.response.send_message(
+                "❌ Command can only be used in a server.", ephemeral=True)
+            return
+
+        roles = config_db.get(str(guild.id), [])
+        if role.id in roles:
+            roles.remove(role.id)
+            save_config()
+            await interaction.response.send_message(
+                f"✅ {role.mention} removed.")
+        else:
+            await interaction.response.send_message(
+                f"ℹ️ {role.mention} was not in the list.", ephemeral=True)
+
+    @app_commands.command(name="list", description="Show authorized roles")
+    async def listroles(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        if guild is None:
+            await interaction.response.send_message(
+                "❌ Command can only be used in a server.", ephemeral=True)
+            return
+
+        ids = allowed_roles(guild.id)
+        if not ids:
+            await interaction.response.send_message("🔸 No authorized roles.",
+                                                    ephemeral=True)
+            return
+
+        mentions = []
+        for rid in ids:
+            role = guild.get_role(rid)
+            if role is not None:
+                mentions.append(role.mention)
+
+        await interaction.response.send_message("🔸 Authorized roles:\n" +
+                                                "\n".join(mentions))
+
+
+bot.tree.add_command(Setup())
+
+# ------------------- Ready & Run -------------
+
+@bot.event
+async def on_ready():
+    user = bot.user
+    if user is None:
+        print("Bot user is None, something went wrong.")
+        return
+
+    print(f"Logged in as {user} (ID: {user.id})")
+
+    try:
+        # Ya no necesitas crear un objeto guild si no se usa
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} slash commands.")
+    except Exception as e:
+        print("Slash‑command sync error:", e)
+
+
+# ------------------- Keep‑alive (Replit) -----
+app = Flask("")
+
+@app.route("/")
+def home():
+    return "Bot is running!"
+
+def run_web():
+    app.run(host="0.0.0.0", port=8080, debug=False)
+
+Thread(target=run_web, daemon=True).start()
+
+# --------------  Show Public URL -------------
+# Esto imprime en consola la URL pública para que puedas copiarla
+print("REPL_SLUG:", os.getenv("REPL_SLUG"))
+print("REPL_OWNER:", os.getenv("REPL_OWNER"))
+print("PUBLIC URL (guess): https://" + str(os.getenv("REPL_SLUG")) + "." + str(os.getenv("REPL_OWNER")) + ".repl.co/")
+
+# ------------------- Token & Run -------------
+TOKEN = os.getenv("DISCORD_TOKEN")
+if not TOKEN:
+    raise RuntimeError("Environment variable DISCORD_TOKEN not set.")
+
+bot.run(TOKEN)
