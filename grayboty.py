@@ -121,27 +121,14 @@ def has_permission(member: discord.Member):
 # ------------------- /showprofile ------------
 
 
-@bot.tree.command(name="showprofile",
-                  description="Show Training & Mission Points")
+@bot.tree.command(name="showprofile", description="Show Training & Mission Points")
 @app_commands.describe(member="Member to view; leave empty for yourself")
-async def showprofile(interaction: discord.Interaction,
-                      member: discord.Member | None = None):
+async def showprofile(interaction: discord.Interaction, member: discord.Member | None = None):
+
+    # ... (tu código para obtener member y data)
 
     if member is None:
-        if interaction.guild:
-            member = interaction.guild.get_member(interaction.user.id)
-        else:
-            member = cast(discord.Member, interaction.user)
-    elif isinstance(member,
-                    discord.User) and not isinstance(member, discord.Member):
-        if interaction.guild:
-            member = interaction.guild.get_member(member.id)
-        else:
-            member = cast(discord.Member, member)
-
-    if member is None:
-        await interaction.response.send_message("Member not found.",
-                                                ephemeral=True)
+        await interaction.response.send_message("Member not found.", ephemeral=True)
         return
 
     guild_id = interaction.guild.id if interaction.guild is not None else 0
@@ -150,17 +137,17 @@ async def showprofile(interaction: discord.Interaction,
     embed.add_field(name="Training Points", value=str(data["tp"]))
     embed.add_field(name="Mission Points", value=str(data["mp"]))
 
-    await interaction.response.defer(ephemeral=False)
-    msg = await interaction.followup.send(embed=embed)
+    # Elimina esta línea:
+    # await interaction.response.defer(ephemeral=False)
 
-    if msg is not None:
-        msg_to_delete = cast(discord.Message, msg)
+    await interaction.response.send_message(embed=embed)
+
+    # Si quieres borrar el mensaje después:
+    try:
         await asyncio.sleep(15)
-        try:
-            await msg_to_delete.delete()
-        except discord.Forbidden:
-            pass
-
+        await interaction.delete_original_response()
+    except discord.Forbidden:
+        pass
 
 # ------------------- /addtp ------------------
 
