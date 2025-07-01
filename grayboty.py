@@ -490,7 +490,7 @@ def auto_restart_check():
             print("❌ Bot no está listo. Reiniciando...")
             os._exit(1)  # Render reiniciará automáticamente
         else:
-            print("✅ Bot verificado correctamente.")
+            print("✅ Bot verificado correctamente.") 
 
 threading.Thread(target=auto_restart_check, daemon=True).start()
 
