@@ -66,6 +66,18 @@ db = client.grayboty_db
 points_collection = db.points
 config_collection = db.config
 
+# --- Print database sizes (for debug only) ---
+def print_db_sizes():
+    dbs = client.list_databases()
+    print("\n======= DATABASE SIZES =======")
+    for db in dbs:
+        name = db['name']
+        size_mb = round(db['sizeOnDisk'] / (1024 * 1024), 2)
+        print(f"{name}: {size_mb} MB")
+    print("==============================\n")
+
+print_db_sizes()
+
 try:
     client.admin.command('ping')
     print("Pinged your deployment. You successfully connected to MongoDB!")
