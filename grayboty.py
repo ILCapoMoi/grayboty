@@ -66,6 +66,12 @@ db = client.grayboty_db
 points_collection = db.points
 config_collection = db.config
 
+try:
+    client.admin.command('ping')
+    print("Pinged your deployment. You successfully connected to MongoDB!")
+except Exception as e:
+    print(f"Error connecting to MongoDB: {e}")
+
 # ------------ Helpers MongoDB ------------
 
 def get_user_data(guild_id: int, user_id: int):
