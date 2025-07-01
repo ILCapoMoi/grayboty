@@ -43,6 +43,8 @@ Requirements
 import os
 import re
 import asyncio
+import time
+import threading
 from typing import Dict, List, cast
 
 import discord
@@ -478,6 +480,19 @@ def run_web():
     app.run(host="0.0.0.0", port=8080, debug=False)
 
 Thread(target=run_web, daemon=True).start()
+
+# ------------ Auto‑restart checker ------------
+
+def auto_restart_check():
+    while True:
+        time.sleep(300)  # 300 segundos = 5 minutos
+        if not bot.is_closed() and not bot.is_ready():
+            print("❌ Bot no está listo. Reiniciando...")
+            os._exit(1)  # Render reiniciará automáticamente
+        else:
+            print("✅ Bot verificado correctamente.")
+
+threading.Thread(target=auto_restart_check, daemon=True).start()
 
 # ------------ Run Bot ------------
 
