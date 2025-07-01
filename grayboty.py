@@ -469,10 +469,11 @@ async def on_ready():
 
 app = Flask("")
 
-@app.route("/")
+@app.route("/", methods=["GET", "HEAD"])
 def home():
-    return "Bot is running!"
-
+    # Para GET devolvemos texto; para HEAD Flask enviará solo cabeceras 200 OK
+    return "Bot is running!", 200
+   
 def run_web():
     app.run(host="0.0.0.0", port=8080, debug=False)
 
