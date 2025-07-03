@@ -274,7 +274,7 @@ def auto_restart_check():
         if bot.is_closed() or not bot.is_ready():
             print("❌ Bot no está listo. Reiniciando…")
             os._exit(1)
-        print("✅ Bot verificado correctamente.")
+        print("✅ Bot verificado correctamente.", flush=True)
 
 threading.Thread(target=auto_restart_check, daemon=True).start()
 
