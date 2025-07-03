@@ -140,31 +140,40 @@ def has_permission(member: discord.Member):
 
 # ------------ /showprofile ------------
 
-
-@bot.tree.command(name="showprofile", description="Show Training & Mission Points")
+@bot.tree.command(
+    name="showprofile",
+    description="Show Training & Mission Points"
+)
 @app_commands.describe(member="Member to view; leave empty for yourself")
-async def showprofile(interaction: discord.Interaction, member: discord.Member | None = None):
-    if member is None:
-        await interaction.response.send_message("Member not found.", ephemeral=True)
-        return
+async def showprofile(
+    interaction: discord.Interaction,
+    member: discord.Member | None = None
+):
+    # 1️⃣ Responder de inmediato para que Discord no cancele la interacción
+    await interaction.response.defer(thinking=True, ephemeral=False)
+    #        └─ quita «ephemeral=True» si quieres que sea pública
 
+    # 2️⃣ Si no especifican miembro, usar al autor
+    if member is None:
+        member = interaction.user
+
+    # 3️⃣ Construir el embed
     guild_id = interaction.guild.id if interaction.guild else 0
     data = get_user_data(guild_id, member.id)
+
     embed = discord.Embed(title=f"Profile – {member.display_name}")
     embed.add_field(name="Training Points", value=str(data.get("tp", 0)))
     embed.add_field(name="Mission Points", value=str(data.get("mp", 0)))
 
-    await interaction.response.send_message(embed=embed)
+    # 4️⃣ Enviar la respuesta final
+    await interaction.followup.send(embed=embed)
 
+    # (opcional) Borrar el mensaje original después de 15 s
     try:
         await asyncio.sleep(15)
         await interaction.delete_original_response()
     except discord.Forbidden:
         pass
-
-POINT_VALUES = {"mvp": 3, "promo": 2, "attended": 1}
-MENTION_RE = re.compile(r"<@!?(\d+)>")
-
 
 # ------------ /addtp ------------
 
