@@ -136,7 +136,10 @@ async def showprofile(
     embed.add_field(name="Training Points", value=data["tp"])
     embed.add_field(name="Mission Points", value=data["mp"])
 
-    await interaction.followup.send(embed=embed)
+    msg = await interaction.followup.send(embed=embed)
+    await asyncio.sleep(20)
+    with contextlib.suppress(discord.Forbidden):
+        await msg.delete()
 
 # ───────────── /addtp ─────────────
 @bot.tree.command(name="addtp", description="Add Training Points with automatic weighting")
@@ -177,7 +180,7 @@ async def addtp(
     msg = await interaction.followup.send(
         "\n".join(summary) + (f"\n🔗 {rollcall}" if rollcall else "")
     )
-    await asyncio.sleep(10)
+    await asyncio.sleep(15)
     with contextlib.suppress(discord.Forbidden):
         await msg.delete()
 
@@ -201,10 +204,13 @@ async def addmp(
 
     await interaction.response.defer()
     total = add_points(interaction.guild.id, member.id, "mp", missionpoints)
-    await interaction.followup.send(
+    msg = await interaction.followup.send(
         f"{member.mention} +{missionpoints} MP → **{total}**"
         + (f"\n🔗 {rollcall}" if rollcall else "")
     )
+    await asyncio.sleep(15)
+    with contextlib.suppress(discord.Forbidden):
+        await msg.delete()
 
 # ───────────── Setup group (/setup …) ─────────────
 class Setup(app_commands.Group, name="setup", description="Configure roles allowed to add points"):
