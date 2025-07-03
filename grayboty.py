@@ -486,7 +486,7 @@ Thread(target=run_web, daemon=True).start()
 def auto_restart_check():
     while True:
         time.sleep(300)  # 300 segundos = 5 minutos
-        if not bot.is_closed() and not bot.is_ready():
+        if not bot.is_closed() or not bot.is_ready():
             print("❌ Bot no está listo. Reiniciando...")
             os._exit(1)  # Render reiniciará automáticamente
         else:
