@@ -52,6 +52,7 @@ from discord.ext import commands
 from flask import Flask
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
+from pymongo import ReturnDocument
 
 # ───────────── MongoDB setup ─────────────
 MONGO_URI = os.getenv("MONGO_URI")
@@ -89,13 +90,14 @@ def get_user_data(gid: int, uid: int):
     return doc
 
 def add_points(gid: int, uid: int, cat: str, amt: int) -> int:
-    result = points_collection.find_one_and_update(
+    """Incrementa TP o MP y devuelve el nuevo total."""
+    doc = points_collection.find_one_and_update(
         {"guild_id": gid, "user_id": uid},
         {"$inc": {cat: amt}},
         upsert=True,
-        return_document=True,
+        return_document=ReturnDocument.AFTER,  # devuelve el doc actualizado
     )
-    return result.get(cat, 0)
+    return doc[cat]   # total final tras el incremento
 
 def allowed_roles(gid: int) -> List[int]:
     doc = config_collection.find_one({"guild_id": gid}) or {}
@@ -122,21 +124,37 @@ def has_permission(member: discord.Member) -> bool:
     return any(r.id in allowed_roles(member.guild.id) for r in member.roles)
 
 # ───────────── /showprofile ─────────────
-@bot.tree.command(name="showprofile", description="Show Training & Mission Points")
+@bot.tree.command(
+    name="showprofile",
+    description="Show Training & Mission Points"
+)
 @app_commands.describe(member="Member to view; leave empty for yourself")
 async def showprofile(
     interaction: discord.Interaction,
     member: discord.Member | None = None,
 ):
+    # 1️⃣  Solo permitido dentro de servidores
+    if interaction.guild is None:
+        await interaction.response.send_message(
+            "❌ Only in servers.",  # mensaje privado
+            ephemeral=True
+        )
+        return
+
+    # 2️⃣  Avisa a Discord de que tardaremos un momento
     await interaction.response.defer(thinking=True)
+
+    # 3️⃣  Si no especifican miembro, usar al autor
     if member is None:
         member = interaction.user
 
+    # 4️⃣  Obtener datos y construir el embed
     data = get_user_data(interaction.guild.id, member.id)
     embed = discord.Embed(title=f"Profile – {member.display_name}")
     embed.add_field(name="Training Points", value=data["tp"])
     embed.add_field(name="Mission Points", value=data["mp"])
 
+    # 5️⃣  Enviar respuesta y borrarla tras 20 s
     msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(20)
     with contextlib.suppress(discord.Forbidden):
