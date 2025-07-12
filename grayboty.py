@@ -46,6 +46,9 @@ import threading
 import contextlib
 from typing import List, cast
 
+from datetime import datetime
+import aiohttp
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -119,6 +122,11 @@ def save_allowed_roles(gid: int, role_ids: List[int]) -> None:
 # ───────────── Constantes ─────────────
 MENTION_RE = re.compile(r"<@!?(\d+)>")
 POINT_VALUES = {"mvp": 3, "promo": 2, "attended": 1}
+
+BADGE_ID = "480453722785205"
+OG_ROLE_NAME = "OG"
+OG_FECHA_INICIO = datetime(2024, 11, 10)
+OG_FECHA_FIN = datetime(2024, 12, 31)
 
 # ───────────── Bot setup ─────────────
 intents = discord.Intents.default()
@@ -224,6 +232,63 @@ async def addmp(
     await asyncio.sleep(15)
     with contextlib.suppress(discord.Forbidden):
         await msg.delete()
+
+# ───────────── /badges ─────────────
+# ───────────── Utility: get Roblox user ID from username ─────────────
+async def get_roblox_user_id(username: str) -> str | None:
+    url = "https://users.roblox.com/v1/usernames/users"
+    payload = {"usernames": [username], "excludeBannedUsers": True}
+    headers = {"Content-Type": "application/json"}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload, headers=headers) as resp:
+            if resp.status != 200:
+                return None
+            data = await resp.json()
+
+    if data.get("data") and len(data["data"]) > 0:
+        return str(data["data"][0]["id"])
+    return None
+
+# ───────────── /verifyog ─────────────
+@bot.tree.command(name="verifyog", description="Verify if you or a member earned the OG SaberForce badge")
+@app_commands.describe(member="Member to verify (optional)")
+async def verifyog(interaction: discord.Interaction, member: discord.Member | None = None):
+    await interaction.response.defer(thinking=True)
+
+    if member is None:
+        member = interaction.user
+
+    # Extract (@RobloxName) from display name
+    username_match = re.search(r"\(@(\w+)\)", member.display_name)
+    if not username_match:
+        await interaction.followup.send("❌ The user's name must include their Roblox username in parentheses. Example: `Username (@RobloxName)`")
+        return
+
+    roblox_username = username_match.group(1)
+    roblox_id = await get_roblox_user_id(roblox_username)
+    if not roblox_id:
+        await interaction.followup.send(f"❌ Could not find a Roblox account named `{roblox_username}`.")
+        return
+
+    date = await obtener_fecha_badge(roblox_id)
+    if not date:
+        await interaction.followup.send(f"⚠️ The badge was not found on the Roblox profile of `{roblox_username}`.")
+        return
+
+    if OG_FECHA_INICIO <= date <= OG_FECHA_FIN:
+        og_role = discord.utils.get(interaction.guild.roles, name=OG_ROLE_NAME)
+        if not og_role:
+            await interaction.followup.send("❌ The `OG` role was not found in this server.")
+            return
+
+        if og_role not in member.roles:
+            await member.add_roles(og_role, reason="Verified as OG by badge")
+            await interaction.followup.send(f"✅ {member.mention} earned the badge on **{date.strftime('%d-%m-%Y')}**. OG role granted.")
+        else:
+            await interaction.followup.send(f"✅ {member.mention} already had the OG role. Badge date: **{date.strftime('%d-%m-%Y')}**.")
+    else:
+        await interaction.followup.send(f"⚠️ {member.mention} has the badge, but the date (**{date.strftime('%d-%m-%Y')}**) is outside the OG badge period.")
 
 # ───────────── Setup group (/setup …) ─────────────
 class Setup(app_commands.Group, name="setup", description="Configure roles allowed to add points"):
