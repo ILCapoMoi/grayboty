@@ -234,20 +234,42 @@ async def addmp(
         await msg.delete()
 
 # ───────────── /badges (Utility: get Roblox user ID from username) ─────────────
-async def get_roblox_user_id(username: str) -> str | None:
-    url = "https://users.roblox.com/v1/usernames/users"
-    payload = {"usernames": [username], "excludeBannedUsers": True}
-    headers = {"Content-Type": "application/json"}
+from datetime import datetime
+import aiohttp
+import re
+
+# ───────────── Utility: fetch badge date from Roblox ─────────────
+async def obtener_fecha_badge(user_id: str) -> datetime | None:
+    url = f"https://www.roblox.com/users/{user_id}/badges"
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
 
     async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload, headers=headers) as resp:
+        async with session.get(url, headers=headers) as resp:
             if resp.status != 200:
+                print(f"⚠️ Error fetching badge page: HTTP {resp.status}")
                 return None
-            data = await resp.json()
+            html = await resp.text()
 
-    if data.get("data") and len(data["data"]) > 0:
-        return str(data["data"][0]["id"])
-    return None
+    # Buscar el bloque del badge SaberForce Tester
+    bloque = re.search(r'(?s)<h3 class="badge-title">.*?SaberForce Tester.*?</li>', html)
+    if not bloque:
+        print("❌ Badge block not found in HTML.")
+        return None
+
+    bloque = bloque.group()
+    fecha_match = re.search(r"Awarded:\s*(\w+\s\d{1,2},\s\d{4})", bloque)
+    if not fecha_match:
+        print("❌ Badge date not found.")
+        return None
+
+    try:
+        return datetime.strptime(fecha_match.group(1), "%b %d, %Y")
+    except ValueError as e:
+        print("❌ Error parsing badge date:", e)
+        return None
+
 
 # ───────────── /verifyog ─────────────
 @bot.tree.command(name="verifyog", description="Verify if a member earned the OG SaberForce badge")
