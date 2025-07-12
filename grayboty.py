@@ -234,29 +234,25 @@ async def addmp(
         await msg.delete()
 
 # ───────────── Utility: get Roblox user ID from username ─────────────
-async def obtener_fecha_badge(user_id: str) -> datetime | None:
-    url = f"https://inventory.roblox.com/v1/users/{user_id}/items/Badge"
-    headers = {"User-Agent": "Mozilla/5.0"}
+async def get_roblox_user_id(username: str) -> str | None:
+    url = "https://users.roblox.com/v1/usernames/users"
+    payload = {"usernames": [username], "excludeBannedUsers": True}
+    headers = {"Content-Type": "application/json"}
 
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers) as resp:
-            print(f"🔎 HTTP status: {resp.status}")
+        async with session.post(url, json=payload, headers=headers) as resp:
+            print(f"🔍 Fetching user ID for Roblox username: {username}")
             if resp.status != 200:
-                print(f"⚠️ Error fetching badge list: HTTP {resp.status}")
+                print(f"⚠️ Error fetching user ID for {username}: HTTP {resp.status}")
                 return None
             data = await resp.json()
 
-    for badge in data.get("data", []):
-        if badge.get("assetId") == SABERFORCE_BADGE_ID:
-            date_str = badge.get("created")
-            if date_str:
-                try:
-                    return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-                except ValueError as e:
-                    print("❌ Error parsing date:", e)
-                    return None
+    if data.get("data") and len(data["data"]) > 0:
+        user_id = str(data["data"][0]["id"])
+        print(f"✅ Found user ID: {user_id} for username: {username}")
+        return user_id
 
-    print("❌ Badge not found in API result.")
+    print("❌ Username not found in Roblox API.")
     return None
 
 # ───────────── /verifyog ─────────────
