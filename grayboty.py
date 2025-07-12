@@ -286,6 +286,7 @@ async def obtener_fecha_badge(user_id: str) -> datetime | None:
 @bot.tree.command(name="verifyog", description="Verify if a member earned the OG SaberForce badge")
 @app_commands.describe(member="Member to verify")
 async def verifyog(interaction: discord.Interaction, member: discord.Member):
+    # Only administrators can use the command
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ Only administrators can use this command.", ephemeral=True)
         return
@@ -295,7 +296,7 @@ async def verifyog(interaction: discord.Interaction, member: discord.Member):
     try:
         print("⚙️ Step 1: Member selected:", member.display_name)
 
-        # Check if the nickname includes (@RobloxName); if not, use the whole name
+        # Extract Roblox username from nickname like: DiscordName(@RobloxName)
         username_match = re.search(r"\(@(\w+)\)", member.display_name)
         if username_match:
             roblox_username = username_match.group(1)
@@ -313,9 +314,7 @@ async def verifyog(interaction: discord.Interaction, member: discord.Member):
 
         date = await obtener_fecha_badge(roblox_id)
         if not date:
-            await interaction.followup.send(
-                f"⚠️ The badge was not found on the Roblox profile of `{roblox_username}`."
-            )
+            await interaction.followup.send(f"⚠️ The badge was not found on the Roblox profile of `{roblox_username}`.")
             return
         print("📅 Badge date:", date.strftime("%Y-%m-%d"))
 
@@ -327,17 +326,11 @@ async def verifyog(interaction: discord.Interaction, member: discord.Member):
 
             if og_role not in member.roles:
                 await member.add_roles(og_role, reason="Verified as OG by badge")
-                await interaction.followup.send(
-                    f"✅ {member.mention} earned the badge on **{date.strftime('%d-%m-%Y')}**. OG role granted."
-                )
+                await interaction.followup.send(f"✅ {member.mention} earned the badge on **{date.strftime('%d-%m-%Y')}**. OG role granted.")
             else:
-                await interaction.followup.send(
-                    f"✅ {member.mention} already has the OG role. Badge date: **{date.strftime('%d-%m-%Y')}**."
-                )
+                await interaction.followup.send(f"✅ {member.mention} already has the OG role. Badge date: **{date.strftime('%d-%m-%Y')}**.")
         else:
-            await interaction.followup.send(
-                f"⚠️ {member.mention} has the badge, but the date (**{date.strftime('%d-%m-%Y')}**) is outside the OG badge period."
-            )
+            await interaction.followup.send(f"⚠️ {member.mention} has the badge, but the date (**{date.strftime('%d-%m-%Y')}**) is outside the OG badge period.")
 
     except Exception as e:
         print("🔥 Error in /verifyog:", e)
