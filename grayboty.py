@@ -123,7 +123,7 @@ def save_allowed_roles(gid: int, role_ids: List[int]) -> None:
 MENTION_RE = re.compile(r"<@!?(\d+)>")
 POINT_VALUES = {"mvp": 3, "promo": 2, "attended": 1}
 
-BADGE_ID = "480453722785205"
+SABERFORCE_BADGE_ID = 480453722785205
 OG_ROLE_NAME = "OG"
 OG_FECHA_INICIO = datetime(2024, 11, 10)
 OG_FECHA_FIN = datetime(2024, 12, 31)
@@ -234,51 +234,30 @@ async def addmp(
         await msg.delete()
 
 # ───────────── Utility: get Roblox user ID from username ─────────────
-async def get_roblox_user_id(username: str) -> str | None:
-    url = "https://users.roblox.com/v1/usernames/users"
-    payload = {"usernames": [username], "excludeBannedUsers": True}
-    headers = {"Content-Type": "application/json"}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload, headers=headers) as resp:
-            if resp.status != 200:
-                print(f"⚠️ Error fetching user ID for {username}: HTTP {resp.status}")
-                return None
-            data = await resp.json()
-
-    if data.get("data") and len(data["data"]) > 0:
-        return str(data["data"][0]["id"])
-    return None
-
-# 2. USER ID → BADGE DATE
 async def obtener_fecha_badge(user_id: str) -> datetime | None:
-    url = f"https://www.roblox.com/users/{user_id}/inventory/#!/badges"
+    url = f"https://inventory.roblox.com/v1/users/{user_id}/items/Badge"
     headers = {"User-Agent": "Mozilla/5.0"}
 
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as resp:
+            print(f"🔎 HTTP status: {resp.status}")
             if resp.status != 200:
-                print(f"⚠️ Error fetching badge page: HTTP {resp.status}")
+                print(f"⚠️ Error fetching badge list: HTTP {resp.status}")
                 return None
-            html = await resp.text()
-            print("📄 HTML recibido:", html[:1000])
+            data = await resp.json()
 
-    bloque = re.search(r'(?s)<h3 class="badge-title">.*?SaberForce Tester.*?</li>', html)
-    if not bloque:
-        print("❌ Badge block not found in HTML.")
-        return None
+    for badge in data.get("data", []):
+        if badge.get("assetId") == SABERFORCE_BADGE_ID:
+            date_str = badge.get("created")
+            if date_str:
+                try:
+                    return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                except ValueError as e:
+                    print("❌ Error parsing date:", e)
+                    return None
 
-    bloque = bloque.group()
-    fecha_match = re.search(r"Awarded:\s*(\w+\s\d{1,2},\s\d{4})", bloque)
-    if not fecha_match:
-        print("❌ Badge date not found.")
-        return None
-
-    try:
-        return datetime.strptime(fecha_match.group(1), "%b %d, %Y")
-    except ValueError as e:
-        print("❌ Error parsing badge date:", e)
-        return None
+    print("❌ Badge not found in API result.")
+    return None
 
 # ───────────── /verifyog ─────────────
 @bot.tree.command(name="verifyog", description="Verify if a member earned the OG SaberForce badge")
