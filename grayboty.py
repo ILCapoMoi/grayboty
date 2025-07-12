@@ -255,6 +255,33 @@ async def get_roblox_user_id(username: str) -> str | None:
     print("❌ Username not found in Roblox API.")
     return None
 
+# ───────────── Utility: fetch badge date from Roblox API ─────────────
+async def obtener_fecha_badge(user_id: str) -> datetime | None:
+    url = f"https://inventory.roblox.com/v1/users/{user_id}/items/Badge"
+    headers = {"User-Agent": "Mozilla/5.0"}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as resp:
+            print(f"🔎 HTTP status: {resp.status}")
+            if resp.status != 200:
+                print(f"⚠️ Error fetching badge list: HTTP {resp.status}")
+                return None
+            data = await resp.json()
+
+    for badge in data.get("data", []):
+        if badge.get("assetId") == SABERFORCE_BADGE_ID:
+            date_str = badge.get("created")
+            print("📅 Badge found! Raw date string:", date_str)
+            if date_str:
+                try:
+                    return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                except ValueError as e:
+                    print("❌ Error parsing badge date:", e)
+                    return None
+
+    print("❌ Badge not found in API result.")
+    return None
+
 # ───────────── /verifyog ─────────────
 @bot.tree.command(name="verifyog", description="Verify if a member earned the OG SaberForce badge")
 @app_commands.describe(member="Member to verify")
