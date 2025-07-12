@@ -233,8 +233,7 @@ async def addmp(
     with contextlib.suppress(discord.Forbidden):
         await msg.delete()
 
-# ───────────── /badges ─────────────
-# ───────────── Utility: get Roblox user ID from username ─────────────
+# ───────────── /badges (Utility: get Roblox user ID from username) ─────────────
 async def get_roblox_user_id(username: str) -> str | None:
     url = "https://users.roblox.com/v1/usernames/users"
     payload = {"usernames": [username], "excludeBannedUsers": True}
@@ -251,21 +250,27 @@ async def get_roblox_user_id(username: str) -> str | None:
     return None
 
 # ───────────── /verifyog ─────────────
-@bot.tree.command(name="verifyog", description="Verify if you or a member earned the OG SaberForce badge")
-@app_commands.describe(member="Member to verify (optional)")
-async def verifyog(interaction: discord.Interaction, member: discord.Member | None = None):
+@bot.tree.command(name="verifyog", description="Verify if a member earned the OG SaberForce badge")
+@app_commands.describe(member="Member to verify")
+async def verifyog(interaction: discord.Interaction, member: discord.Member):
+    # Permitir solo administradores
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ Only administrators can use this command.", ephemeral=True)
+        return
+
     await interaction.response.defer(thinking=True)
 
-    if member is None:
-        member = interaction.user
-
-    # Extract (@RobloxName) from display name
+    # Extraer el nombre de Roblox desde el nickname, usando el formato (@RobloxUsername)
     username_match = re.search(r"\(@(\w+)\)", member.display_name)
     if not username_match:
-        await interaction.followup.send("❌ The user's name must include their Roblox username in parentheses. Example: `Username (@RobloxName)`")
+        await interaction.followup.send(
+            "❌ The member's nickname must contain their Roblox username in parentheses. Example: `Moi(@ILCapoMoi)`"
+        )
         return
 
     roblox_username = username_match.group(1)
+    print("🔍 Roblox username extracted:", roblox_username)
+
     roblox_id = await get_roblox_user_id(roblox_username)
     if not roblox_id:
         await interaction.followup.send(f"❌ Could not find a Roblox account named `{roblox_username}`.")
@@ -273,7 +278,9 @@ async def verifyog(interaction: discord.Interaction, member: discord.Member | No
 
     date = await obtener_fecha_badge(roblox_id)
     if not date:
-        await interaction.followup.send(f"⚠️ The badge was not found on the Roblox profile of `{roblox_username}`.")
+        await interaction.followup.send(
+            f"⚠️ The badge was not found on the Roblox profile of `{roblox_username}`."
+        )
         return
 
     if OG_FECHA_INICIO <= date <= OG_FECHA_FIN:
@@ -284,11 +291,17 @@ async def verifyog(interaction: discord.Interaction, member: discord.Member | No
 
         if og_role not in member.roles:
             await member.add_roles(og_role, reason="Verified as OG by badge")
-            await interaction.followup.send(f"✅ {member.mention} earned the badge on **{date.strftime('%d-%m-%Y')}**. OG role granted.")
+            await interaction.followup.send(
+                f"✅ {member.mention} earned the badge on **{date.strftime('%d-%m-%Y')}**. OG role granted."
+            )
         else:
-            await interaction.followup.send(f"✅ {member.mention} already had the OG role. Badge date: **{date.strftime('%d-%m-%Y')}**.")
+            await interaction.followup.send(
+                f"✅ {member.mention} already has the OG role. Badge date: **{date.strftime('%d-%m-%Y')}**."
+            )
     else:
-        await interaction.followup.send(f"⚠️ {member.mention} has the badge, but the date (**{date.strftime('%d-%m-%Y')}**) is outside the OG badge period.")
+        await interaction.followup.send(
+            f"⚠️ {member.mention} has the badge, but the date (**{date.strftime('%d-%m-%Y')}**) is outside the OG badge period."
+        )
 
 # ───────────── Setup group (/setup …) ─────────────
 class Setup(app_commands.Group, name="setup", description="Configure roles allowed to add points"):
