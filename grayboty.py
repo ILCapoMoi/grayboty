@@ -40,19 +40,21 @@ Requirements
 # ─────────────── Imports ───────────────
 import os
 import re
-import asyncio
 import time
 import threading
 import contextlib
+import asyncio
 from typing import List, cast
 
-from datetime import datetime
+from datetime import datetime, timezone
 import aiohttp
 
 import discord
 from discord import app_commands
 from discord.ext import commands
+
 from flask import Flask
+
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 from pymongo import ReturnDocument
@@ -125,8 +127,9 @@ POINT_VALUES = {"mvp": 3, "promo": 2, "attended": 1}
 
 SABERFORCE_BADGE_ID = 480453722785205
 OG_ROLE_NAME = "OG"
-OG_FECHA_INICIO = datetime(2024, 11, 10)
-OG_FECHA_FIN = datetime(2025, 7, 12)
+OG_FECHA_INICIO = datetime(2024, 11, 10, tzinfo=timezone.utc)
+OG_FECHA_FIN = datetime(2025, 7, 12, tzinfo=timezone.utc)
+
 
 # ───────────── Bot setup ─────────────
 intents = discord.Intents.default()
