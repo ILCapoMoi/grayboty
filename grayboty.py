@@ -294,17 +294,11 @@ async def obtener_fecha_badge(user_id: str) -> datetime | None:
 @bot.tree.command(name="verifyog", description="Verify if a member earned the OG SaberForce badge")
 @app_commands.describe(member="Member to verify")
 async def verifyog(interaction: discord.Interaction, member: discord.Member):
-    # Only administrators can use the command
-    if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("❌ Only administrators can use this command.", ephemeral=True)
-        return
-
     await interaction.response.defer(thinking=True)
 
     try:
         print("⚙️ Step 1: Member selected:", member.display_name)
 
-        # Extract Roblox username from nickname like: DiscordName(@RobloxName)
         username_match = re.search(r"\(@(\w+)\)", member.display_name)
         if username_match:
             roblox_username = username_match.group(1)
@@ -316,41 +310,54 @@ async def verifyog(interaction: discord.Interaction, member: discord.Member):
 
         roblox_id = await get_roblox_user_id(roblox_username)
         if not roblox_id:
-            await interaction.followup.send(f"❌ Could not find a Roblox account named `{roblox_username}`.")
+            msg = await interaction.followup.send(f"❌ Could not find a Roblox account named `{roblox_username}`.")
+            await asyncio.sleep(25)
+            await msg.delete()
             return
+
         print("🔍 Roblox user ID:", roblox_id)
 
         date = await obtener_fecha_badge(roblox_id)
         if date is None:
-            await interaction.followup.send(
+            msg = await interaction.followup.send(
                 f"⚠️ `{roblox_username}` does not have the SaberForce badge."
             )
+            await asyncio.sleep(25)
+            await msg.delete()
             return
+
         print("📅 Badge date:", date.strftime("%Y-%m-%d"))
 
         if OG_FECHA_INICIO <= date <= OG_FECHA_FIN:
             og_role = discord.utils.get(interaction.guild.roles, name=OG_ROLE_NAME)
             if not og_role:
-                await interaction.followup.send("❌ The `OG` role was not found in this server.")
+                msg = await interaction.followup.send("❌ The `OG` role was not found in this server.")
+                await asyncio.sleep(25)
+                await msg.delete()
                 return
 
             if og_role not in member.roles:
                 await member.add_roles(og_role, reason="Verified as OG by badge")
-                await interaction.followup.send(
+                msg = await interaction.followup.send(
                     f"✅ {member.mention} earned the badge on **{date.strftime('%d-%m-%Y')}**. OG role granted."
                 )
             else:
-                await interaction.followup.send(
+                msg = await interaction.followup.send(
                     f"✅ {member.mention} already has the OG role. Badge date: **{date.strftime('%d-%m-%Y')}**."
                 )
         else:
-            await interaction.followup.send(
+            msg = await interaction.followup.send(
                 f"⚠️ {member.mention} has the badge, but the date (**{date.strftime('%d-%m-%Y')}**) is outside the OG badge period."
             )
 
+        await asyncio.sleep(25)
+        await msg.delete()
+
     except Exception as e:
         print("🔥 Error in /verifyog:", e)
-        await interaction.followup.send(f"❌ Internal error: `{e}`. Check the logs.")
+        msg = await interaction.followup.send(f"❌ Internal error: `{e}`. Check the logs.")
+        await asyncio.sleep(25)
+        await msg.delete()
 
 # ───────────── Setup group (/setup …) ─────────────
 class Setup(app_commands.Group, name="setup", description="Configure roles allowed to add points"):
