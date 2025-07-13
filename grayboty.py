@@ -127,8 +127,8 @@ POINT_VALUES = {"mvp": 3, "promo": 2, "attended": 1}
 
 SABERFORCE_BADGE_ID = 480453722785205
 OG_ROLE_NAME = "OG"
-OG_FECHA_INICIO = datetime(2024, 11, 10, tzinfo=timezone.utc)
-OG_FECHA_FIN = datetime(2025, 7, 12, tzinfo=timezone.utc)
+OG_FECHA_INICIO = datetime(2024, 3, 25, tzinfo=timezone.utc)
+OG_FECHA_FIN = datetime(2025, 1, 12, tzinfo=timezone.utc)
 
 
 # ───────────── Bot setup ─────────────
