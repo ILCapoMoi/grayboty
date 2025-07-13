@@ -125,10 +125,10 @@ def save_allowed_roles(gid: int, role_ids: List[int]) -> None:
 MENTION_RE = re.compile(r"<@!?(\d+)>")
 POINT_VALUES = {"mvp": 3, "promo": 2, "attended": 1}
 
-SABERFORCE_BADGE_ID = 480453722785205
-OG_ROLE_NAME = "OG"
-OG_FECHA_INICIO = datetime(2024, 3, 25, tzinfo=timezone.utc)
-OG_FECHA_FIN = datetime(2024, 11, 10, tzinfo=timezone.utc)
+#SABERFORCE_BADGE_ID = 480453722785205
+#OG_ROLE_NAME = "OG"
+#OG_FECHA_INICIO = datetime(2024, 3, 25, tzinfo=timezone.utc)
+#OG_FECHA_FIN = datetime(2024, 11, 10, tzinfo=timezone.utc)
 
 
 # ───────────── Bot setup ─────────────
@@ -235,7 +235,7 @@ async def addmp(
     await asyncio.sleep(15)
     with contextlib.suppress(discord.Forbidden):
         await msg.delete()
-
+"""
 # ───────────── Utility: get Roblox user ID from username ─────────────
 async def get_roblox_user_id(username: str) -> str | None:
     url = "https://users.roblox.com/v1/usernames/users"
@@ -358,7 +358,7 @@ async def verifyog(interaction: discord.Interaction, member: discord.Member):
         msg = await interaction.followup.send(f"❌ Internal error: `{e}`. Check the logs.")
         await asyncio.sleep(25)
         await msg.delete()
-
+"""
 # ───────────── Setup group (/setup …) ─────────────
 class Setup(app_commands.Group, name="setup", description="Configure roles allowed to add points"):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
