@@ -257,29 +257,34 @@ async def get_roblox_user_id(username: str) -> str | None:
 
 # ───────────── Utility: fetch badge date from Roblox API ─────────────
 async def obtener_fecha_badge(user_id: str) -> datetime | None:
-    url = f"https://www.roblox.com/users/{user_id}/inventory#!/badges"
+    url_base = f"https://badges.roblox.com/v1/users/{user_id}/badges"
     headers = {"User-Agent": "Mozilla/5.0"}
+    cursor = None
 
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers) as resp:
-            print(f"🔎 HTTP status: {resp.status}")
-            if resp.status != 200:
-                print(f"⚠️ Error fetching badge list: HTTP {resp.status}")
-                return None
-            data = await resp.json()
-
-    for badge in data.get("data", []):
-        if badge.get("assetId") == SABERFORCE_BADGE_ID:
-            date_str = badge.get("created")
-            print("📅 Badge found! Raw date string:", date_str)
-            if date_str:
-                try:
-                    return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-                except ValueError as e:
-                    print("❌ Error parsing badge date:", e)
+        while True:
+            url = url_base + (f"?cursor={cursor}" if cursor else "")
+            async with session.get(url, headers=headers) as resp:
+                if resp.status != 200:
+                    print(f"⚠️ Error fetching badges list: HTTP {resp.status}")
                     return None
+                data = await resp.json()
 
-    print("❌ Badge not found in API result.")
+            for badge in data.get("data", []):
+                if badge.get("id") == SABERFORCE_BADGE_ID:
+                    date_str = badge.get("created")
+                    if date_str:
+                        try:
+                            return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                        except Exception as e:
+                            print(f"❌ Error parsing badge date: {e}")
+                            return None
+
+            cursor = data.get("nextPageCursor")
+            if not cursor:
+                break
+
+    print("❌ Badge not found in paginated results.")
     return None
 
 # ───────────── /verifyog ─────────────
