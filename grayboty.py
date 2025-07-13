@@ -257,7 +257,7 @@ async def get_roblox_user_id(username: str) -> str | None:
 
 # ───────────── Utility: fetch badge date from Roblox API ─────────────
 async def obtener_fecha_badge(user_id: str) -> datetime | None:
-    url = f"https://inventory.roblox.com/v1/users/{user_id}/items/Badge"
+    url = f"https://www.roblox.com/users/{user_id}/inventory#!/badges"
     headers = {"User-Agent": "Mozilla/5.0"}
 
     async with aiohttp.ClientSession() as session:
