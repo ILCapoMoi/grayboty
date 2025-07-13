@@ -339,15 +339,15 @@ async def verifyog(interaction: discord.Interaction, member: discord.Member):
             if og_role not in member.roles:
                 await member.add_roles(og_role, reason="Verified as OG by badge")
                 msg = await interaction.followup.send(
-                    f"✅ {member.mention} earned the badge on **{date.strftime('%d-%m-%Y')}**. OG role granted."
+                    f"✅ {member.mention} earned the badge on _{date.strftime('%d-%m-%Y')}_. **OG** role granted."
                 )
             else:
                 msg = await interaction.followup.send(
-                    f"✅ {member.mention} already has the OG role. Badge date: **{date.strftime('%d-%m-%Y')}**."
+                    f"✅ {member.mention} already has the **OG** role. Badge date: _{date.strftime('%d-%m-%Y')}_."
                 )
         else:
             msg = await interaction.followup.send(
-                f"⚠️ {member.mention} has the badge, but the date (**{date.strftime('%d-%m-%Y')}**) is outside the OG badge period."
+                f"⚠️ {member.mention} has the badge, but the date (_{date.strftime('%d-%m-%Y')}_) is outside the OG badge period."
             )
 
         await asyncio.sleep(25)
