@@ -48,6 +48,7 @@ from typing import List, cast
 
 from datetime import datetime, timezone
 import aiohttp
+import psutil
 
 import discord
 from discord import app_commands
@@ -58,8 +59,6 @@ from flask import Flask
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 from pymongo import ReturnDocument
-
-import psutil
 # ───────────── MongoDB setup ─────────────
 MONGO_URI = os.getenv("MONGO_URI")
 if not MONGO_URI:
