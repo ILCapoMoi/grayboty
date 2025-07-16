@@ -301,30 +301,32 @@ def run_flask():
 
 threading.Thread(target=run_flask, daemon=True).start()
 
-# ─────── Monitor Bot (check Ram & connection) ────────
+# ─────── Monitor Bot (check RAM & conexión) ────────
 def monitor_bot():
+    print("⏳ Esperando 10 minutos antes de iniciar el monitoreo…")
+    time.sleep(600)  # Esperar 10 minutos
     process = psutil.Process(os.getpid())
-    print("🛡️ Monitor arrancado")
+    print("🛡️ Monitor de RAM y conexión iniciado.")
     while True:
         try:
             mem_mb = process.memory_info().rss / (1024 * 1024)
             print(f"📦 Memoria usada: {mem_mb:.2f} MB")
-
             if mem_mb >= 490:
                 print(f"⚠️ Memoria alta detectada: {mem_mb:.2f} MB. Reiniciando…")
                 os._exit(1)
-
             if bot.is_closed() or not bot.is_ready():
                 print("❌ Bot no está listo. Reiniciando…")
                 os._exit(1)
-
             print("✅ Bot verificado correctamente.", flush=True)
-            time.sleep(600)  # 10 minutos
+            time.sleep(600)  # Espera entre chequeos (10 min)
         except Exception as e:
-            print(f"Error en monitor_bot: {e}")
-            time.sleep(10)
+            print(f"❌ Error en monitor_bot: {e}")
+            time.sleep(10)  # Esperar un poco antes de continuar
 
-threading.Thread(target=monitor_bot, daemon=True).start()
+@bot.event   # Iniciar el hilo cuando el bot esté listo
+async def on_ready():
+    print(f"🤖 Bot iniciado como {bot.user} — conectado correctamente.")
+    threading.Thread(target=monitor_bot, daemon=True).start()
 
 # ───────────── Run bot ─────────────
 TOKEN = os.getenv("DISCORD_TOKEN")
