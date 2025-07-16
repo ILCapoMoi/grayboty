@@ -305,15 +305,23 @@ threading.Thread(target=run_flask, daemon=True).start()
 def monitor_bot():
     process = psutil.Process(os.getpid())
     while True:
-        mem_mb = process.memory_info().rss / (1024 * 1024)
-        print(f"📦 Memoria usada: {mem_mb:.2f} MB")
+        try:
+            mem_mb = process.memory_info().rss / (1024 * 1024)
+            print(f"📦 Memoria usada: {mem_mb:.2f} MB")
 
-        if bot.is_closed() or not bot.is_ready():
-            print("❌ Bot no está listo. Reiniciando…")
-            os._exit(1)
+            if mem_mb >= 490:
+                print(f"⚠️ Memoria alta detectada: {mem_mb:.2f} MB. Reiniciando…")
+                os._exit(1)
 
-        print("✅ Bot verificado correctamente.", flush=True)
-        time.sleep(600)  # 10 minutos
+            if bot.is_closed() or not bot.is_ready():
+                print("❌ Bot no está listo. Reiniciando…")
+                os._exit(1)
+
+            print("✅ Bot verificado correctamente.", flush=True)
+            time.sleep(600)  # 10 minutos
+        except Exception as e:
+            print(f"Error en monitor_bot: {e}")
+            time.sleep(10)  # Pequeña pausa y sigue
 
 threading.Thread(target=monitor_bot, daemon=True).start()
 
