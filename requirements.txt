@@ -1,14 +1,7 @@
-# Core bot
 discord.py[voice]==2.5.2
-
-# Database
 pymongo[srv]==4.13.2
-
-# Web keep‑alive
 Flask==3.1.1
-gunicorn          # opcional pero recomendado
-
-# Utilidades extra (opcional)
+gunicorn
 python-dotenv
-
 aiohttp
+psutil
