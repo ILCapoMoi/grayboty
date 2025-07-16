@@ -301,24 +301,21 @@ def run_flask():
 
 threading.Thread(target=run_flask, daemon=True).start()
 
-# ─────────── Auto‑restart & memory-usage checker ───────────
-def auto_restart_check():
+# ─────── Monitor Bot (check Ram & connection) ────────
+def monitor_bot():
+    process = psutil.Process(os.getpid())
     while True:
-        time.sleep(600)  # 10 minutos
+        mem_mb = process.memory_info().rss / (1024 * 1024)
+        print(f"📦 Memoria usada: {mem_mb:.2f} MB")
+
         if bot.is_closed() or not bot.is_ready():
             print("❌ Bot no está listo. Reiniciando…")
             os._exit(1)
-        print("✅ Bot verificado correctamente.", flush=True)
 
-def memory_usage_check():
-    process = psutil.Process(os.getpid())
-    while True:
-        mem_mb = process.memory_info().rss / (1024 * 1024)  # RAM usada en MB
-        print(f"📦 Memoria usada: {mem_mb:.2f} MB")
+        print("✅ Bot verificado correctamente.", flush=True)
         time.sleep(600)  # 10 minutos
 
-threading.Thread(target=auto_restart_check, daemon=True).start()
-threading.Thread(target=memory_usage_check, daemon=True).start()
+threading.Thread(target=monitor_bot, daemon=True).start()
 
 # ───────────── Run bot ─────────────
 TOKEN = os.getenv("DISCORD_TOKEN")
