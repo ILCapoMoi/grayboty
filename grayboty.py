@@ -329,4 +329,11 @@ threading.Thread(target=monitor_bot, daemon=True).start()
 TOKEN = os.getenv("DISCORD_TOKEN")
 if not TOKEN:
     raise RuntimeError("Environment variable DISCORD_TOKEN not set.")
-bot.run(TOKEN)
+
+try:
+    bot.run(TOKEN)
+except Exception as e:
+    print(f"Fatal error running bot: {e}")
+    import traceback
+    traceback.print_exc()
+    os._exit(1)
