@@ -304,6 +304,7 @@ threading.Thread(target=run_flask, daemon=True).start()
 # ─────── Monitor Bot (check Ram & connection) ────────
 def monitor_bot():
     process = psutil.Process(os.getpid())
+    print("🛡️ Monitor arrancado")
     while True:
         try:
             mem_mb = process.memory_info().rss / (1024 * 1024)
@@ -321,7 +322,7 @@ def monitor_bot():
             time.sleep(600)  # 10 minutos
         except Exception as e:
             print(f"Error en monitor_bot: {e}")
-            time.sleep(10)  # Pequeña pausa y sigue
+            time.sleep(10)
 
 threading.Thread(target=monitor_bot, daemon=True).start()
 
