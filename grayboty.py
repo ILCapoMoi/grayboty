@@ -210,9 +210,9 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     )
     embed.set_thumbnail(url=member.display_avatar.url)
 
-    embed.add_field(name="Training Points", value=data["tp"], inline=False)
-    embed.add_field(name="Mission Points", value=data["mp"], inline=False)
-    embed.add_field(name="\u200b", value="────────────", inline=False)
+    embed.add_field(name="Training Points", value=data["tp"], inline=True)
+    embed.add_field(name="Mission Points", value=data["mp"], inline=True)
+    embed.add_field(name="\u200b", value="────────────", inline=True)
     embed.add_field(name="Rank", value=highest_rank_raw, inline=False)
 
     next_rank = None
@@ -228,7 +228,10 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         mp = req.get('mp', 0)
         tier = req.get('tier', None)
 
-        requirement_text = f"Next rank {rank_emojis.get(next_rank, '')} | **{next_rank}**. Requires **{tp} Training points**, **{mp} Mission points**"
+        requirement_text = (
+           f"Next rank {rank_emojis.get(next_rank, '')} | **{next_rank}**.\n"
+           f"Requires **{req.get('tp', 0)} Training points**, **{req.get('mp', 0)} Mission points** and **{req['tier']}** skill level."
+        )
         if tier:
             requirement_text += f" and **{tier}** skill level."
         else:
