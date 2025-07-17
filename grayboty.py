@@ -236,7 +236,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
            f"_Requires **{req.get('tp', 0)} Training points**, **{req.get('mp', 0)} Mission points**_"
         )
         if req.get('tier'):
-            requirement_text += f"_ and **{req['tier']}** skill level._"
+            requirement_text += f" _and **{req['tier']}** skill level._"
         else:
             requirement_text += "."
     elif current_rank == "Silver Knight" and next_rank == "Master - On trial":
