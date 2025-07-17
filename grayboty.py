@@ -124,12 +124,6 @@ def save_allowed_roles(gid: int, role_ids: List[int]) -> None:
 MENTION_RE = re.compile(r"<@!?(\d+)>")
 POINT_VALUES = {"mvp": 3, "promo": 2, "attended": 1}
 
-#SABERFORCE_BADGE_ID = 480453722785205
-#OG_ROLE_NAME = "OG"
-#OG_FECHA_INICIO = datetime(2024, 3, 25, tzinfo=timezone.utc)
-#OG_FECHA_FIN = datetime(2024, 11, 10, tzinfo=timezone.utc)
-
-
 # ───────────── Bot setup ─────────────
 intents = discord.Intents.default()
 intents.members = True
@@ -221,7 +215,6 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     embed.add_field(name="\u200b", value="────────────", inline=False)
     embed.add_field(name="Rank", value=highest_rank_raw, inline=False)
 
-    # Determinar el siguiente rango y sus requisitos
     next_rank = None
     if current_rank in rank_list:
         current_index = rank_list.index(current_rank)
@@ -231,15 +224,20 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     requirement_text = ""
     if next_rank in rank_requirements:
         req = rank_requirements[next_rank]
-        requirement_text = f"You need TP: {req.get('tp', 0)}, MP: {req.get('mp', 0)}"
-        if 'tier' in req:
-            requirement_text += f', and Level-Tier: \"{req["tier"]}\"'
-        requirement_text += f" to reach the next rank: {rank_emojis.get(next_rank, '')} | {next_rank}"
+        tp = req.get('tp', 0)
+        mp = req.get('mp', 0)
+        tier = req.get('tier', None)
+
+        requirement_text = f"Next rank {rank_emojis.get(next_rank, '')} | **{next_rank}**. Requires **{tp} Training points**, **{mp} Mission points**"
+        if tier:
+            requirement_text += f" and **{tier}** skill level."
+        else:
+            requirement_text += "."
 
     elif current_rank == "Silver Knight" and next_rank == "Master - On trial":
         requirement_text = (
             "From this point on, promotions are based on selection by High Ranks (HR). "
-            "If you achieve the Level-Tier: High-Tier, you may join the elite division: The Secret Fier."
+            "If you achieve the Level-Tier: **High-Tier**, you may join the elite division: **The Secret Fier**."
         )
 
     if requirement_text:
@@ -473,7 +471,7 @@ async def on_ready():
     print(f"🤖 Bot started as {bot.user} (ID: {bot.user.id}) — connected successfully.")
     try:
         synced = await bot.tree.sync()
-        print(f"✅ Synced {len(synced)} slash commands.")
+        print(f"☑️ Synced {len(synced)} slash commands.")
     except Exception as e:
         print(f"❌ Slash command sync error: {e}")
 
