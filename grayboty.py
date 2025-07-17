@@ -389,12 +389,14 @@ bot.tree.add_command(Setup())
 # ───────────── Eventos ─────────────
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user} (ID: {bot.user.id})")
+    print(f"🤖 Bot started as {bot.user} (ID: {bot.user.id}) — connected successfully.")
     try:
         synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} slash commands.")
+        print(f"✅ Synced {len(synced)} slash commands.")
     except Exception as e:
-        print("Slash‑command sync error:", e)
+        print(f"❌ Slash command sync error: {e}")
+
+    threading.Thread(target=monitor_bot, daemon=True).start()
 
 # ───────────── Keep‑alive server ─────────────
 app = Flask(__name__)
@@ -411,30 +413,25 @@ threading.Thread(target=run_flask, daemon=True).start()
 
 # ─────── Monitor Bot (check RAM & conexión) ────────
 def monitor_bot():
-    print("⏳ Esperando 10 minutos antes de iniciar el monitoreo…")
-    time.sleep(600)  # Esperar 10 minutos
+    print("⏳ Waiting 10 minutes before starting monitoring…")
+    time.sleep(600)  # Wait 10 minutes
     process = psutil.Process(os.getpid())
-    print("🛡️ Monitor de RAM y conexión iniciado.")
+    print("🛡️ RAM and connection monitor started.")
     while True:
         try:
             mem_mb = process.memory_info().rss / (1024 * 1024)
-            print(f"📦 Memoria usada: {mem_mb:.2f} MB")
+            print(f"📦 Memory usage: {mem_mb:.2f} MB")
             if mem_mb >= 490:
-                print(f"⚠️ Memoria alta detectada: {mem_mb:.2f} MB. Reiniciando…")
+                print(f"⚠️ High memory usage detected: {mem_mb:.2f} MB. Restarting…")
                 os._exit(1)
             if bot.is_closed() or not bot.is_ready():
-                print("❌ Bot no está listo. Reiniciando…")
+                print("❌ Bot not ready. Restarting…")
                 os._exit(1)
-            print("✅ Bot verificado correctamente.", flush=True)
-            time.sleep(600)  # Espera entre chequeos (10 min)
+            print("✅ Bot check passed.", flush=True)
+            time.sleep(600)  # Wait between checks (10 min)
         except Exception as e:
-            print(f"❌ Error en monitor_bot: {e}")
-            time.sleep(10)  # Esperar un poco antes de continuar
-
-@bot.event   # Iniciar el hilo cuando el bot esté listo
-async def on_ready():
-    print(f"🤖 Bot iniciado como {bot.user} — conectado correctamente.")
-    threading.Thread(target=monitor_bot, daemon=True).start()
+            print(f"❌ Error in monitor_bot: {e}")
+            time.sleep(10)  # Wait a bit before continuing
 
 # ───────────── Run bot ─────────────
 TOKEN = os.getenv("DISCORD_TOKEN")
