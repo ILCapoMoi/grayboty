@@ -212,7 +212,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
 
     embed.add_field(name="Training Points", value=data["tp"], inline=True)
     embed.add_field(name="Mission Points", value=data["mp"], inline=True)
-    embed.add_field(name="\u200b", value="────────────", inline=True)
+    embed.add_field(name="────────────", value="\u200b", inline=False)
     embed.add_field(name="Rank", value=highest_rank_raw, inline=False)
 
     next_rank = None
@@ -495,8 +495,8 @@ threading.Thread(target=run_flask, daemon=True).start()
 
 # ─────── Monitor Bot (check RAM & conexión) ────────
 def monitor_bot():
-    print("⏳ Waiting 10 minutes before starting monitoring…")
-    time.sleep(600)  # Wait 10 minutes
+    print("⏳ Waiting 5 minutes before starting monitoring…")
+    time.sleep(300)  # Wait 5 minutes
     process = psutil.Process(os.getpid())
     print("🛡️ RAM and connection monitor started.")
     while True:
