@@ -95,9 +95,9 @@ def add_points(gid, uid, field, amount):
         {"guild_id": gid, "user_id": uid},
         {"$inc": {field: amount}},
         upsert=True,
-        return_document=ReturnDocument.AFTER
+        return_document=ReturnDocument.AFTER,
     )
-    return doc[cat]
+    return doc[field]
 
 def allowed_roles(gid: int) -> List[int]:
     doc = config_collection.find_one({"guild_id": gid}) or {}
