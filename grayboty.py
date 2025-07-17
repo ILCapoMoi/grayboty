@@ -197,7 +197,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
             f"_**{member.display_name}** does not have any points to show their profile yet._"
         )
         await asyncio.sleep(15)
-        with contextlib.suppress(discord.Forbidden):
+        with contextlib.suppress((discord.Forbidden, discord.NotFound)):
             await msg.delete()
         return
 
@@ -245,7 +245,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     msg = await interaction.followup.send(embed=embed)
 
     await asyncio.sleep(25)
-    with contextlib.suppress(discord.Forbidden):
+    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
 # ───────────── /addtp ─────────────
@@ -295,7 +295,7 @@ async def addtp(
     )
     msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(15)
-    with contextlib.suppress(discord.Forbidden):
+    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
 # ───────────── /addmp ─────────────
@@ -331,7 +331,7 @@ async def addmp(
     )
     msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(15)
-    with contextlib.suppress(discord.Forbidden):
+    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
        
 # ───────────── /deltp ─────────────
@@ -372,7 +372,7 @@ async def deltp(interaction: discord.Interaction, members: str, points: app_comm
     )
     msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(15)
-    with contextlib.suppress(discord.Forbidden):
+    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
        
 # ───────────── /delmp ─────────────
@@ -413,7 +413,7 @@ async def delmp(interaction: discord.Interaction, members: str, points: app_comm
     )
     msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(15)
-    with contextlib.suppress(discord.Forbidden):
+    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
 # ───────────── /addall ─────────────
@@ -454,7 +454,7 @@ async def addall(
     )
     msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(15)
-    with contextlib.suppress(discord.Forbidden):
+    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
 # ───────────── Autorización fija (roles permitidos para añadir puntos) ─────────────
