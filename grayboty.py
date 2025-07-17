@@ -77,8 +77,7 @@ def print_db_sizes() -> None:
         print(f"{info['name']}: {mb} MB")
     print("==============================\n")
 
-if os.getenv("DEBUG_DB_SIZES") == "1":
-    print_db_sizes()
+print_db_sizes() # Mostrar el uso de espacio siempre al iniciar
 
 try:
     client.admin.command("ping")
