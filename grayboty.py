@@ -86,28 +86,24 @@ except Exception as e:
     print("Error connecting to MongoDB:", e)
 
 # ───────────── Utilidades MongoDB ─────────────
-def get_user_data(gid: int, uid: int):
+def get_user_data(gid: int, uid: int) -> dict | None:
     doc = points_collection.find_one({"guild_id": gid, "user_id": uid})
-    if not doc:
-        doc = {"guild_id": gid, "user_id": uid, "tp": 0, "mp": 0}
-        points_collection.insert_one(doc)
-    else:
-        # Asegurarse de que existan las claves 'tp' y 'mp'
-        if "tp" not in doc:
-            doc["tp"] = 0
-        if "mp" not in doc:
-            doc["mp"] = 0
     return doc
 
 def add_points(gid: int, uid: int, cat: str, amt: int) -> int:
     """Incrementa TP o MP y devuelve el nuevo total."""
+    if cat not in ["tp", "mp"]:
+        raise ValueError("Category must be 'tp' or 'mp'")
     doc = points_collection.find_one_and_update(
         {"guild_id": gid, "user_id": uid},
-        {"$inc": {cat: amt}},
+        {
+            "$setOnInsert": {"tp": 0, "mp": 0},
+            "$inc": {cat: amt}
+        },
         upsert=True,
-        return_document=ReturnDocument.AFTER,  # devuelve el doc actualizado
+        return_document=ReturnDocument.AFTER,
     )
-    return doc[cat]   # total final tras el incremento
+    return doc[cat]
 
 def allowed_roles(gid: int) -> List[int]:
     doc = config_collection.find_one({"guild_id": gid}) or {}
@@ -199,6 +195,10 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         member = interaction.user
 
     data = get_user_data(interaction.guild.id, member.id)
+
+    if data is None:
+        await interaction.followup.send("❌ Este usuario aún no tiene puntos para ver su perfil.", ephemeral=True)
+        return
 
     # Obtener el rango más alto del usuario
     highest_rank_raw = get_highest_rank(member)
