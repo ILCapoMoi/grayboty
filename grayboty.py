@@ -90,18 +90,12 @@ def get_user_data(gid: int, uid: int) -> dict | None:
     doc = points_collection.find_one({"guild_id": gid, "user_id": uid})
     return doc
 
-def add_points(gid: int, uid: int, cat: str, amt: int) -> int:
-    """Incrementa TP o MP y devuelve el nuevo total."""
-    if cat not in ["tp", "mp"]:
-        raise ValueError("Category must be 'tp' or 'mp'")
+def add_points(gid, uid, field, amount):
     doc = points_collection.find_one_and_update(
         {"guild_id": gid, "user_id": uid},
-        {
-            "$setOnInsert": {"tp": 0, "mp": 0},
-            "$inc": {cat: amt}
-        },
+        {"$inc": {field: amount}},
         upsert=True,
-        return_document=ReturnDocument.AFTER,
+        return_document=ReturnDocument.AFTER
     )
     return doc[cat]
 
