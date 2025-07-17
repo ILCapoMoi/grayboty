@@ -235,7 +235,8 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         if 'tier' in req:
             requirement_text += f', and Level-Tier: \"{req["tier"]}\"'
         requirement_text += f" to reach the next rank: {rank_emojis.get(next_rank, '')} | {next_rank}"
-    elif next_rank == "Silver Knight":
+
+    elif current_rank == "Silver Knight" and next_rank == "Master - On trial":
         requirement_text = (
             "From this point on, promotions are based on selection by High Ranks (HR). "
             "If you achieve the Level-Tier: High-Tier, you may join the elite division: The Secret Fier."
@@ -246,7 +247,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
 
     msg = await interaction.followup.send(embed=embed)
 
-    await asyncio.sleep(20)
+    await asyncio.sleep(25)
     with contextlib.suppress(discord.Forbidden):
         await msg.delete()
 
