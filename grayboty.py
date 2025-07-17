@@ -234,6 +234,98 @@ async def addmp(
     await asyncio.sleep(15)
     with contextlib.suppress(discord.Forbidden):
         await msg.delete()
+       
+# ───────────── /deltp ─────────────
+@bot.tree.command(name="deltp", description="Remove Training Points from one or more members (Admin only)")
+@app_commands.describe(
+    members="Members to remove TP from (mention multiple)",
+    points="Points to remove (positive integer)"
+)
+@app_commands.checks.has_permissions(administrator=True)
+async def deltp(interaction: discord.Interaction, members: commands.Greedy[discord.Member], points: app_commands.Range[int, 1]):
+    if not members:
+        await interaction.response.send_message("❌ You must specify at least one member.", ephemeral=True)
+        return
+    await interaction.response.defer()
+    guild = interaction.guild
+    summary = []
+    for member in members:
+        doc = get_user_data(guild.id, member.id)
+        current_tp = doc.get("tp", 0)
+        remove_amt = min(points, current_tp)  # No restar más que lo que tiene
+        if remove_amt > 0:
+            new_tp = add_points(guild.id, member.id, "tp", -remove_amt)
+            summary.append(f"{member.mention} -{remove_amt} TP → **{new_tp}**")
+        else:
+            summary.append(f"{member.mention} has no TP to remove.")
+    msg = await interaction.followup.send("\n".join(summary))
+    await asyncio.sleep(15)
+    with contextlib.suppress(discord.Forbidden):
+        await msg.delete()
+       
+# ───────────── /delmp ─────────────
+@bot.tree.command(name="delmp", description="Remove Mission Points from one or more members (Admin only)")
+@app_commands.describe(
+    members="Members to remove MP from (mention multiple)",
+    points="Points to remove (positive integer)"
+)
+@app_commands.checks.has_permissions(administrator=True)
+async def delmp(interaction: discord.Interaction, members: commands.Greedy[discord.Member], points: app_commands.Range[int, 1]):
+    if not members:
+        await interaction.response.send_message("❌ You must specify at least one member.", ephemeral=True)
+        return
+    await interaction.response.defer()
+    guild = interaction.guild
+    summary = []
+    for member in members:
+        doc = get_user_data(guild.id, member.id)
+        current_mp = doc.get("mp", 0)
+        remove_amt = min(points, current_mp)
+        if remove_amt > 0:
+            new_mp = add_points(guild.id, member.id, "mp", -remove_amt)
+            summary.append(f"{member.mention} -{remove_amt} MP → **{new_mp}**")
+        else:
+            summary.append(f"{member.mention} has no MP to remove.")
+    msg = await interaction.followup.send("\n".join(summary))
+    await asyncio.sleep(15)
+    with contextlib.suppress(discord.Forbidden):
+        await msg.delete()
+       
+# ───────────── /addall ─────────────
+@bot.tree.command(name="addall", description="Add TP and/or MP to one member (Admin only)")
+@app_commands.describe(
+    member="Member to add points to",
+    tp="Training Points to add (optional)",
+    mp="Mission Points to add (optional)"
+)
+@app_commands.checks.has_permissions(administrator=True)
+async def addall(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    tp: app_commands.Range[int, 0] = 0,
+    mp: app_commands.Range[int, 0] = 0,
+):
+    if tp == 0 and mp == 0:
+        await interaction.response.send_message("❌ You must specify at least TP or MP points to add.", ephemeral=True)
+        return
+
+    await interaction.response.defer()
+
+    guild_id = interaction.guild.id
+    results = []
+
+    if tp > 0:
+        new_tp = add_points(guild_id, member.id, "tp", tp)
+        results.append(f"✅ {member.mention} +{tp} TP → **{new_tp}**")
+
+    if mp > 0:
+        new_mp = add_points(guild_id, member.id, "mp", mp)
+        results.append(f"✅ {member.mention} +{mp} MP → **{new_mp}**")
+
+    msg = await interaction.followup.send("\n".join(results))
+    await asyncio.sleep(15)
+    with contextlib.suppress(discord.Forbidden):
+        await msg.delete()
 
 # ───────────── Setup group (/setup …) ─────────────
 class Setup(app_commands.Group, name="setup", description="Configure roles allowed to add points"):
