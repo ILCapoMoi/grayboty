@@ -138,6 +138,49 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 def has_permission(member: discord.Member) -> bool:
     return any(r.id in allowed_roles(member.guild.id) for r in member.roles)
+   
+# ───────────── Función para obtener el rango más alto ─────────────
+rank_list = [
+    "Initiate",
+    "Acolyte",
+    "Disciple",
+    "Seeker",
+    "Knight",
+    "Gray Knight",
+    "Silver Knight",
+    "Master - On trial",
+    "Grandmaster",
+    "Master of Balance",
+    "Gray Lord",
+    "Ashen Lord",
+    "Gray Emperor",
+    "Elder Gray Emperor"
+]
+rank_emojis = {
+    "Initiate": "<:Initate:1384843420316729435>",
+    "Acolyte": "<:Acolyte:1384849435225358407>",
+    "Disciple": "<:Disciple:1384843393234108426>",
+    "Seeker": "<:Seeker:1384843362942844988>",
+    "Knight": "<:Knight:1384844814104789032>",
+    "Gray Knight": "<:GrayKnight:1384844842361815111>",
+    "Silver Knight": "<:SilverKnight:1384874305363513425>",
+    "Master - On trial": "<:trial_master:1390000479970263100>",
+    "Grandmaster": "<:grm:1384494486222147654>",
+    "Master of Balance": "<:Mbalance:1384835972813820057>",
+    "Gray Lord": "<:GrayLord:1395372415856410686>",
+    "Ashen Lord": "<:AshenLord:1395372378728431626>",
+    "Gray Emperor": "<:Silver:1384690687189975090>",
+    "Elder Gray Emperor": "<:gold:1384690646803284038>",
+}
+def get_highest_rank(member: discord.Member) -> str:
+    member_roles = [role.name for role in member.roles]
+    ranks_found = [rank for rank in rank_list if rank in member_roles]
+    if not ranks_found:
+        return "No Rank"
+    
+    highest_rank = max(ranks_found, key=lambda r: rank_list.index(r))
+    emoji = rank_emojis.get(highest_rank, "")
+    return f"{emoji} | {highest_rank}" if emoji else highest_rank
 
 # ───────────── /showprofile ─────────────
 @bot.tree.command(name="showprofile", description="Show Training & Mission Points")
@@ -153,15 +196,19 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
 
     data = get_user_data(interaction.guild.id, member.id)
 
+    # Obtener el rango más alto del usuario
+    highest_rank = get_highest_rank(member)
+
     embed = discord.Embed(
         title=f"{member.display_name}",
-        color=discord.Color.light_grey()
+        color=discord.Color.light_yellow()
     )
-    embed.add_field(name="Training Points", value=data["tp"])
-    embed.add_field(name="Mission Points", value=data["mp"])
-
-    # Añadido thumbnail con el avatar del usuario
     embed.set_thumbnail(url=member.display_avatar.url)
+    
+    embed.add_field(name="Training Points", value=data["tp"], inline=False)
+    embed.add_field(name="Mission Points", value=data["mp"], inline=False)
+    embed.add_field(name="\u200b", value="────────────", inline=False)
+    embed.add_field(name="Rank", value=highest_rank, inline=False)
 
     msg = await interaction.followup.send(embed=embed)
 
