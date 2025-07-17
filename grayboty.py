@@ -146,7 +146,6 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     try:
         await interaction.response.defer(thinking=True)
     except discord.errors.InteractionResponded:
-        # Ya respondido, seguimos sin defer
         pass
 
     if member is None:
@@ -155,11 +154,14 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     data = get_user_data(interaction.guild.id, member.id)
 
     embed = discord.Embed(
-        title=f"Profile – {member.display_name}",
-        color=discord.Color.gold()
+        title=f"{member.display_name}",
+        color=discord.Color.light_grey()
     )
     embed.add_field(name="Training Points", value=data["tp"])
     embed.add_field(name="Mission Points", value=data["mp"])
+
+    # Añadido thumbnail con el avatar del usuario
+    embed.set_thumbnail(url=member.display_avatar.url)
 
     msg = await interaction.followup.send(embed=embed)
 
