@@ -200,7 +200,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     if not doc or (doc.get("tp", 0) == 0 and doc.get("mp", 0) == 0):
         # Usuario no tiene perfil ni puntos, mostrar mensaje y salir
         msg = await interaction.followup.send(
-            f"ℹ️ {member.display_name} does not have any points to show their profile yet."
+            f"__**{member.display_name}** does not have any points to show their profile yet.__"
         )
         await asyncio.sleep(15)
         with contextlib.suppress(discord.Forbidden):
