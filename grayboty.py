@@ -238,46 +238,62 @@ async def addmp(
 # ───────────── /deltp ─────────────
 @bot.tree.command(name="deltp", description="Remove Training Points from one or more members (Admin only)")
 @app_commands.describe(
-    members="Members to remove TP from (mention multiple)",
+    members="Mentions or IDs of members separated by spaces",
     points="Points to remove (positive integer)"
 )
 @app_commands.checks.has_permissions(administrator=True)
-async def deltp(interaction: discord.Interaction, members: commands.Greedy[discord.Member], points: app_commands.Range[int, 1]):
-    if not members:
-        await interaction.response.send_message("❌ You must specify at least one member.", ephemeral=True)
-        return
+async def deltp(interaction: discord.Interaction, members: str, points: app_commands.Range[int, 1]):
     await interaction.response.defer()
     guild = interaction.guild
+
+    member_ids = MENTION_RE.findall(members)
+    if not member_ids:
+        await interaction.followup.send("❌ No valid member mentions found.", ephemeral=True)
+        return
+
     summary = []
-    for member in members:
+    for mid in member_ids:
+        member = guild.get_member(int(mid))
+        if not member:
+            summary.append(f"User ID {mid} not found in guild.")
+            continue
         doc = get_user_data(guild.id, member.id)
         current_tp = doc.get("tp", 0)
-        remove_amt = min(points, current_tp)  # No restar más que lo que tiene
+        remove_amt = min(points, current_tp)
         if remove_amt > 0:
             new_tp = add_points(guild.id, member.id, "tp", -remove_amt)
             summary.append(f"{member.mention} -{remove_amt} TP → **{new_tp}**")
         else:
             summary.append(f"{member.mention} has no TP to remove.")
+
     msg = await interaction.followup.send("\n".join(summary))
     await asyncio.sleep(15)
     with contextlib.suppress(discord.Forbidden):
         await msg.delete()
+
        
 # ───────────── /delmp ─────────────
 @bot.tree.command(name="delmp", description="Remove Mission Points from one or more members (Admin only)")
 @app_commands.describe(
-    members="Members to remove MP from (mention multiple)",
+    members="Mentions or IDs of members separated by spaces",
     points="Points to remove (positive integer)"
 )
 @app_commands.checks.has_permissions(administrator=True)
-async def delmp(interaction: discord.Interaction, members: commands.Greedy[discord.Member], points: app_commands.Range[int, 1]):
-    if not members:
-        await interaction.response.send_message("❌ You must specify at least one member.", ephemeral=True)
-        return
+async def delmp(interaction: discord.Interaction, members: str, points: app_commands.Range[int, 1]):
     await interaction.response.defer()
     guild = interaction.guild
+
+    member_ids = MENTION_RE.findall(members)
+    if not member_ids:
+        await interaction.followup.send("❌ No valid member mentions found.", ephemeral=True)
+        return
+
     summary = []
-    for member in members:
+    for mid in member_ids:
+        member = guild.get_member(int(mid))
+        if not member:
+            summary.append(f"User ID {mid} not found in guild.")
+            continue
         doc = get_user_data(guild.id, member.id)
         current_mp = doc.get("mp", 0)
         remove_amt = min(points, current_mp)
@@ -286,6 +302,7 @@ async def delmp(interaction: discord.Interaction, members: commands.Greedy[disco
             summary.append(f"{member.mention} -{remove_amt} MP → **{new_mp}**")
         else:
             summary.append(f"{member.mention} has no MP to remove.")
+
     msg = await interaction.followup.send("\n".join(summary))
     await asyncio.sleep(15)
     with contextlib.suppress(discord.Forbidden):
@@ -295,8 +312,8 @@ async def delmp(interaction: discord.Interaction, members: commands.Greedy[disco
 @bot.tree.command(name="addall", description="Add TP and/or MP to one member (Admin only)")
 @app_commands.describe(
     member="Member to add points to",
-    tp="Training Points to add (optional)",
-    mp="Mission Points to add (optional)"
+    tp="Training Points to add (optional, default 0)",
+    mp="Mission Points to add (optional, default 0)"
 )
 @app_commands.checks.has_permissions(administrator=True)
 async def addall(
