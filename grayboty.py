@@ -201,7 +201,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
 
     embed = discord.Embed(
         title=f"{member.display_name}",
-        color=discord.Color.light_yellow()
+        color=discord.Color.from_rgb(252, 246, 193)
     )
     embed.set_thumbnail(url=member.display_avatar.url)
     
