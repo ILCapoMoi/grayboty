@@ -194,13 +194,15 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     if member is None:
         member = interaction.user
 
-    data = get_user_data(interaction.guild.id, member.id)
-
-    if data is None:
-        await interaction.followup.send("❌ Este usuario aún no tiene puntos para ver su perfil.", ephemeral=True)
+    # Buscar el perfil SIN crear (no upsert)
+    doc = points_collection.find_one({"guild_id": interaction.guild.id, "user_id": member.id})
+    
+    if not doc or (doc.get("tp", 0) == 0 and doc.get("mp", 0) == 0):
+        # Usuario no tiene perfil ni puntos, mostrar mensaje y salir
+        await interaction.followup.send(f"ℹ️ {member.display_name} does not have any points to show their profile yet.", ephemeral=True)
         return
 
-    # Obtener el rango más alto del usuario
+    # Perfil existe con puntos, mostrar info
     highest_rank_raw = get_highest_rank(member)
     current_rank = highest_rank_raw.split("|")[-1].strip() if "|" in highest_rank_raw else highest_rank_raw
 
@@ -210,8 +212,8 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     )
     embed.set_thumbnail(url=member.display_avatar.url)
 
-    embed.add_field(name="Training Points", value=data["tp"], inline=True)
-    embed.add_field(name="Mission Points", value=data["mp"], inline=True)
+    embed.add_field(name="Training Points", value=doc.get("tp", 0), inline=True)
+    embed.add_field(name="Mission Points", value=doc.get("mp", 0), inline=True)
     embed.add_field(name="────────────", value="\u200b", inline=False)
     embed.add_field(name="Rank", value=highest_rank_raw, inline=False)
 
@@ -224,23 +226,18 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     requirement_text = ""
     if next_rank in rank_requirements:
         req = rank_requirements[next_rank]
-        tp = req.get('tp', 0)
-        mp = req.get('mp', 0)
-        tier = req.get('tier', None)
-
         requirement_text = (
            f"Next rank {rank_emojis.get(next_rank, '')} | **{next_rank}**.\n"
-           f"Requires **{req.get('tp', 0)} Training points**, **{req.get('mp', 0)} Mission points** and **{req['tier']}** skill level."
+           f"Requires **{req.get('tp', 0)} Training points**, **{req.get('mp', 0)} Mission points** and **{req.get('tier', '')}** skill level."
         )
-        if tier:
-            requirement_text += f" and **{tier}** skill level."
+        if req.get('tier'):
+            requirement_text += f" and **{req['tier']}** skill level."
         else:
             requirement_text += "."
-
     elif current_rank == "Silver Knight" and next_rank == "Master - On trial":
         requirement_text = (
             "From this point on, promotions are based on selection by High Ranks (HR). "
-            "If you achieve the Level-Tier: **High-Tier**, you may join the elite division: **The Secret Fier**."
+            "If you achieve the Level-Tier: **High-Tier**, you may join the elite division: __The Secret Fier__."
         )
 
     if requirement_text:
@@ -278,11 +275,15 @@ async def addtp(
 
     summary = []
     for cat, text in {"mvp": mvp, "promo": promo, "attended": attended}.items():
+        pts_to_add = POINT_VALUES.get(cat, 0)
+        if pts_to_add <= 0:
+            continue
+
         for uid in MENTION_RE.findall(text):
             member = guild.get_member(int(uid))
             if member:
-                total = add_points(guild.id, member.id, "tp", POINT_VALUES[cat])
-                summary.append(f"{member.mention} +{POINT_VALUES[cat]} TP → **{total}**")
+                total = add_points(guild.id, member.id, "tp", pts_to_add)
+                summary.append(f"{member.mention} +{pts_to_add} TP → **{total}**")
 
     if not summary:
         await interaction.followup.send("ℹ️ No valid mentions found.")
@@ -315,9 +316,15 @@ async def addmp(
     if not has_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
+
     await interaction.response.defer()
-    total = add_points(interaction.guild.id, member.id, "mp", missionpoints)
-   
+
+    # Solo añadir puntos si missionpoints es mayor que 0 (por seguridad)
+    if missionpoints > 0:
+        total = add_points(interaction.guild.id, member.id, "mp", missionpoints)
+    else:
+        total = 0
+
     embed = discord.Embed(
         title="✅ Mission Points Added",
         description=f"{member.mention} +{missionpoints} MP → **{total}**" + (f"\n🔗 {rollcall}" if rollcall else ""),
