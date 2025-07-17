@@ -230,10 +230,9 @@ async def addmp(
     if not has_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
-
     await interaction.response.defer()
-     total = add_points(interaction.guild.id, member.id, "mp", missionpoints)
-
+    total = add_points(interaction.guild.id, member.id, "mp", missionpoints)
+   
     embed = discord.Embed(
         title="✅ Mission Points Added",
         description=f"{member.mention} +{missionpoints} MP → **{total}**" + (f"\n🔗 {rollcall}" if rollcall else ""),
