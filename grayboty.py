@@ -154,7 +154,10 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
 
     data = get_user_data(interaction.guild.id, member.id)
 
-    embed = discord.Embed(title=f"Profile – {member.display_name}")
+    embed = discord.Embed(
+        title=f"Profile – {member.display_name}",
+        color=discord.Color.gold()
+    )
     embed.add_field(name="Training Points", value=data["tp"])
     embed.add_field(name="Mission Points", value=data["mp"])
 
@@ -200,9 +203,12 @@ async def addtp(
         await interaction.followup.send("ℹ️ No valid mentions found.")
         return
 
-    msg = await interaction.followup.send(
-        "\n".join(summary) + (f"\n🔗 {rollcall}" if rollcall else "")
+    embed = discord.Embed(
+        title="✅ Training Points Added",
+        description="\n".join(summary) + (f"\n🔗 {rollcall}" if rollcall else ""),
+        color=discord.Color.green()
     )
+    msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(15)
     with contextlib.suppress(discord.Forbidden):
         await msg.delete()
@@ -226,11 +232,14 @@ async def addmp(
         return
 
     await interaction.response.defer()
-    total = add_points(interaction.guild.id, member.id, "mp", missionpoints)
-    msg = await interaction.followup.send(
-        f"{member.mention} +{missionpoints} MP → **{total}**"
-        + (f"\n🔗 {rollcall}" if rollcall else "")
+     total = add_points(interaction.guild.id, member.id, "mp", missionpoints)
+
+    embed = discord.Embed(
+        title="✅ Mission Points Added",
+        description=f"{member.mention} +{missionpoints} MP → **{total}**" + (f"\n🔗 {rollcall}" if rollcall else ""),
+        color=discord.Color.blue()
     )
+    msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(15)
     with contextlib.suppress(discord.Forbidden):
         await msg.delete()
@@ -266,11 +275,15 @@ async def deltp(interaction: discord.Interaction, members: str, points: app_comm
         else:
             summary.append(f"{member.mention} has no TP to remove.")
 
-    msg = await interaction.followup.send("\n".join(summary))
+    embed = discord.Embed(
+        title="⚠️ Training Points Removed",
+        description="\n".join(summary),
+        color=discord.Color.orange()
+    )
+    msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(15)
     with contextlib.suppress(discord.Forbidden):
         await msg.delete()
-
        
 # ───────────── /delmp ─────────────
 @bot.tree.command(name="delmp", description="Remove Mission Points from one or more members (Admin only)")
@@ -303,11 +316,16 @@ async def delmp(interaction: discord.Interaction, members: str, points: app_comm
         else:
             summary.append(f"{member.mention} has no MP to remove.")
 
-    msg = await interaction.followup.send("\n".join(summary))
+    embed = discord.Embed(
+        title="⚠️ Mission Points Removed",
+        description="\n".join(summary),
+        color=discord.Color.orange()
+    )
+    msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(15)
     with contextlib.suppress(discord.Forbidden):
         await msg.delete()
-       
+
 # ───────────── /addall ─────────────
 @bot.tree.command(name="addall", description="Add TP and/or MP to one member (Admin only)")
 @app_commands.describe(
@@ -339,52 +357,32 @@ async def addall(
         new_mp = add_points(guild_id, member.id, "mp", mp)
         results.append(f"✅ {member.mention} +{mp} MP → **{new_mp}**")
 
-    msg = await interaction.followup.send("\n".join(results))
+    embed = discord.Embed(
+        title="✅ Points Added",
+        description="\n".join(results),
+        color=discord.Color.yellow()
+    )
+    msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(15)
     with contextlib.suppress(discord.Forbidden):
         await msg.delete()
 
-# ───────────── Setup group (/setup …) ─────────────
-class Setup(app_commands.Group, name="setup", description="Configure roles allowed to add points"):
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        member = cast(discord.Member, interaction.user)
-        if not member.guild_permissions.administrator:
-            await interaction.response.send_message("❌ Admin only.", ephemeral=True)
-            return False
-        return True
+# ───────────── Autorización fija (roles permitidos para añadir puntos) ─────────────
 
-    @app_commands.command(name="addrole", description="Authorize a role")
-    async def addrole(self, interaction: discord.Interaction, role: discord.Role):
-        roles = allowed_roles(interaction.guild.id)
-        if role.id not in roles:
-            roles.append(role.id)
-            save_allowed_roles(interaction.guild.id, roles)
-            msg = f"✅ {role.mention} authorized."
-        else:
-            msg = f"ℹ️ {role.mention} already authorized."
-        await interaction.response.send_message(msg, ephemeral=True)
+# Lista de IDs de roles que pueden usar comandos para añadir puntos.
+ALLOWED_ROLE_IDS = [
+    1380998711555002469,  # Elder Gray Emperor
+    1380998901263499314,  # Gray Emperor
+    1385195798576496741,  # Ashen Lord
+    1381369825015632023,  # Gray Lord
+    1381035805065347093,  # Master of Balance
+    1381369333279883384,  # Grandmaster
+    1387185214144647409,  # Master - On Trial
+]
 
-    @app_commands.command(name="removerole", description="Remove a role from authorization list")
-    async def removerole(self, interaction: discord.Interaction, role: discord.Role):
-        roles = allowed_roles(interaction.guild.id)
-        if role.id in roles:
-            roles.remove(role.id)
-            save_allowed_roles(interaction.guild.id, roles)
-            msg = f"✅ {role.mention} removed."
-        else:
-            msg = f"ℹ️ {role.mention} was not in the list."
-        await interaction.response.send_message(msg, ephemeral=True)
-
-    @app_commands.command(name="list", description="Show authorized roles")
-    async def listroles(self, interaction: discord.Interaction):
-        ids = allowed_roles(interaction.guild.id)
-        if not ids:
-            await interaction.response.send_message("🔸 No authorized roles.", ephemeral=True)
-            return
-        mentions = [interaction.guild.get_role(rid).mention for rid in ids if interaction.guild.get_role(rid)]
-        await interaction.response.send_message("🔸 Authorized roles:\n" + "\n".join(mentions), ephemeral=True)
-
-bot.tree.add_command(Setup())
+# Función para verificar si el miembro tiene un rol autorizado
+def has_permission(member: discord.Member) -> bool:
+    return any(role.id in ALLOWED_ROLE_IDS for role in member.roles)
 
 # ───────────── Eventos ─────────────
 @bot.event
