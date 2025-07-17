@@ -139,7 +139,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 def has_permission(member: discord.Member) -> bool:
     return any(r.id in allowed_roles(member.guild.id) for r in member.roles)
    
-# ───────────── Función para obtener el rango más alto ─────────────
 rank_list = [
     "Initiate",
     "Acolyte",
@@ -172,17 +171,28 @@ rank_emojis = {
     "Gray Emperor": "<:Silver:1384690687189975090>",
     "Elder Gray Emperor": "<:gold:1384690646803284038>",
 }
+
 def get_highest_rank(member: discord.Member) -> str:
     member_roles = [role.name for role in member.roles]
     ranks_found = [rank for rank in rank_list if rank in member_roles]
     if not ranks_found:
         return "No Rank"
-    
+
     highest_rank = max(ranks_found, key=lambda r: rank_list.index(r))
     emoji = rank_emojis.get(highest_rank, "")
     return f"{emoji} | {highest_rank}" if emoji else highest_rank
 
-# ───────────── /showprofile ─────────────
+# ────────────── Requisitos para cada rango ──────────────
+rank_requirements = {
+    "Acolyte": {"tp": 1},
+    "Disciple": {"tp": 5, "mp": 3, "tier": "Low-Tier"},
+    "Seeker": {"tp": 12, "mp": 5, "tier": "Low-Tier"},
+    "Knight": {"tp": 18, "mp": 9, "tier": "Middle-Tier"},
+    "Gray Knight": {"tp": 24, "mp": 12, "tier": "Middle-Tier [ ⁑ ]"},
+    "Silver Knight": {"tp": 30, "mp": 18, "tier": "Middle-Tier [ ⁂ ]"}
+}
+
+# ─────────── /showprofile ───────────
 @bot.tree.command(name="showprofile", description="Show Training & Mission Points")
 @app_commands.describe(member="Member to view; leave empty for yourself")
 async def showprofile(interaction: discord.Interaction, member: discord.Member | None = None):
@@ -197,18 +207,42 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     data = get_user_data(interaction.guild.id, member.id)
 
     # Obtener el rango más alto del usuario
-    highest_rank = get_highest_rank(member)
+    highest_rank_raw = get_highest_rank(member)
+    current_rank = highest_rank_raw.split("|")[-1].strip() if "|" in highest_rank_raw else highest_rank_raw
 
     embed = discord.Embed(
         title=f"{member.display_name}",
-        color=discord.Color.from_rgb(252, 246, 193)
+        color=discord.Color.from_rgb(247, 240, 172)
     )
     embed.set_thumbnail(url=member.display_avatar.url)
-    
+
     embed.add_field(name="Training Points", value=data["tp"], inline=False)
     embed.add_field(name="Mission Points", value=data["mp"], inline=False)
     embed.add_field(name="\u200b", value="────────────", inline=False)
-    embed.add_field(name="Rank", value=highest_rank, inline=False)
+    embed.add_field(name="Rank", value=highest_rank_raw, inline=False)
+
+    # Determinar el siguiente rango y sus requisitos
+    next_rank = None
+    if current_rank in rank_list:
+        current_index = rank_list.index(current_rank)
+        if current_index + 1 < len(rank_list):
+            next_rank = rank_list[current_index + 1]
+
+    requirement_text = ""
+    if next_rank in rank_requirements:
+        req = rank_requirements[next_rank]
+        requirement_text = f"You need TP: {req.get('tp', 0)}, MP: {req.get('mp', 0)}"
+        if 'tier' in req:
+            requirement_text += f', and Level-Tier: \"{req["tier"]}\"'
+        requirement_text += f" to reach the next rank: {rank_emojis.get(next_rank, '')} | {next_rank}"
+    elif next_rank == "Silver Knight":
+        requirement_text = (
+            "From this point on, promotions are based on selection by High Ranks (HR). "
+            "If you achieve the Level-Tier: High-Tier, you may join the elite division: The Secret Fier."
+        )
+
+    if requirement_text:
+        embed.add_field(name="Next Rank Requirement", value=requirement_text, inline=False)
 
     msg = await interaction.followup.send(embed=embed)
 
