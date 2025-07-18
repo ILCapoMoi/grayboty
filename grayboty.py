@@ -219,7 +219,6 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         value="<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R2Laser:1395746474293198949>\n\u200b",
         inline=False
     )
-    embed.add_field(name="Rank", value=highest_rank_raw, inline=False)
 
     next_rank = None
     if current_rank in rank_list:
@@ -231,9 +230,9 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     if next_rank in rank_requirements:
         req = rank_requirements[next_rank]
         requirement_text = (
-            f"_Rank:_\n"
-            f"{rank_emojis.get(current_rank, '')} | _{current_rank}_\n\n"
-            f"_Next rank requirements:_ {rank_emojis.get(next_rank, '')} | _{next_rank}_\n"
+            f"**_Rank:_**\n"
+            f"{rank_emojis.get(current_rank, '')} | {current_rank}\n\n"
+            f"__**Next rank requirements:**__ {rank_emojis.get(next_rank, '')} | {next_rank}\n"
             f"· _**{req.get('tp', 0)}** training points_\n"
             f"· _**{req.get('mp', 0)}** mission points_\n"
         )
@@ -246,7 +245,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         )
 
     if requirement_text:
-        embed.add_field(name="Next Rank Requirement", value=requirement_text, inline=False)
+        embed.add_field(name="", value=requirement_text, inline=False)
 
     msg = await interaction.followup.send(embed=embed)
 
