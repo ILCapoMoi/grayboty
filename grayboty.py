@@ -216,7 +216,8 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     # Laser
     embed.add_field(
         name="",
-        value="<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R2Laser:1395746474293198949>",
+        value="<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209><:R1Laser:1395746456681578628>\u2003<:R1Laser:1395746456681578628><:R1Laser:1395746456681578628>\u2003<:R2Laser:1395746474293198949> " \
+          "<:M2LaserInv:1395909504482283750><:M1Laser:1395909456986112110><:M1Laser:1395909456986112110>\u2003<:M1Laser:1395909456986112110><:H2LaserInv:1395909361494396948>\u2003<:H1LaserInv:1395909332339790065>",
         inline=False
     )
 
@@ -231,7 +232,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     }
     user_medals = [emoji for role_id, emoji in medal_roles.items() if discord.utils.get(member.roles, id=role_id)]
     if user_medals:
-        embed.add_field(name="**Medals of honor**", value="## " + " | ".join(user_medals), inline=False)
+        embed.add_field(name="## Medals of honor", value=" {} ".format(" | ".join(user_medals)), inline=False)
 
     # Rank actual
     embed.add_field(name="**Rank:**", value=f"{rank_emojis.get(current_rank, '')} | {current_rank}", inline=False)
