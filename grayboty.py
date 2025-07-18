@@ -216,7 +216,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     # Laser
     embed.add_field(
         name="",
-        value="<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R2Laser:1395746474293198949>",
+        value="<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R2Laser:1395746474293198949>",
         inline=False
     )
 
@@ -231,7 +231,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     }
     user_medals = [emoji for role_id, emoji in medal_roles.items() if discord.utils.get(member.roles, id=role_id)]
     if user_medals:
-        embed.add_field(name="**Medals of honor**", value=f"| {' '.join(user_medals)} |", inline=False)
+        embed.add_field(name="**Medals of honor**", value=''.join(user_medals), inline=False)
 
     # Rank actual
     embed.add_field(name="**Rank:**", value=f"{rank_emojis.get(current_rank, '')} | {current_rank}", inline=False)
@@ -243,7 +243,15 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         if current_index + 1 < len(rank_list):
             next_rank = rank_list[current_index + 1]
 
-    if next_rank in rank_requirements:
+    # Requisitos o textos especiales
+    if current_rank in ["Gray Lord", "Ashen Lord"]:
+        embed.add_field(name="", value="You are part of the TGO council.", inline=False)
+
+    elif current_rank in ["Silver Knight", "Master - On trial", "Grandmaster", "Master of Balance", "Gray Lord"]:
+        if next_rank:
+            embed.add_field(name="", value="From this rank onwards, promotions are decided by HR.", inline=False)
+
+    elif next_rank in rank_requirements:
         req = rank_requirements[next_rank]
         req_text = (
             f"**Next rank requirements:** {rank_emojis.get(next_rank, '')} | {next_rank}\n"
@@ -254,21 +262,11 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
             req_text += f"\u00b7 _**{req['tier']}** level_"
         embed.add_field(name="", value=req_text, inline=False)
 
-    elif current_rank == "Silver Knight" and next_rank == "Master - On trial":
-        embed.add_field(
-            name="",
-            value=(
-                "From this rank onwards, promotions are decided by HR."
-            ),
-            inline=False
-        )
-
     msg = await interaction.followup.send(embed=embed)
 
     await asyncio.sleep(25)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
-
 
 # ───────────── /addtp ─────────────
 @bot.tree.command(name="addtp", description="Add Training Points with automatic weighting")
