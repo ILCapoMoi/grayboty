@@ -266,7 +266,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
             req_text += f"\u00b7 _**{req['tier']}** level_"
         embed.add_field(name="", value=req_text, inline=False)
 
-    embed.add_field(name="\u200b", value="<:OficialTGO:1395904116072648764> The Gray Order", inline=False)
+    embed.add_field(name="\u200b", value="-# <:OficialTGO:1395904116072648764> The Gray Order", inline=False)
 
     msg = await interaction.followup.send(embed=embed)
 
