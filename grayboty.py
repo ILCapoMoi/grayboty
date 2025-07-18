@@ -231,13 +231,14 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     if next_rank in rank_requirements:
         req = rank_requirements[next_rank]
         requirement_text = (
-           f"Next rank {rank_emojis.get(next_rank, '')} | **{next_rank}**.\n"
-           f"_Requires **{req.get('tp', 0)} Training points**, **{req.get('mp', 0)} Mission points**_"
+            f"_Rank:_\n"
+            f"{rank_emojis.get(current_rank, '')} | _{current_rank}_\n\n"
+            f"_Next rank requirements:_ {rank_emojis.get(next_rank, '')} | _{next_rank}_\n"
+            f"· _**{req.get('tp', 0)}** training points_\n"
+            f"· _**{req.get('mp', 0)}** mission points_\n"
         )
         if req.get('tier'):
-            requirement_text += f" _and **{req['tier']}** skill level._"
-        else:
-            requirement_text += "."
+            requirement_text += f"· _**{req['tier']}** level_"
     elif current_rank == "Silver Knight" and next_rank == "Master - On trial":
         requirement_text = (
             "From this point on, promotions are based on selection by High Ranks (HR). "
