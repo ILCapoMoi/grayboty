@@ -181,8 +181,9 @@ rank_requirements = {
 @app_commands.describe(member="Member to view; leave empty for yourself")
 async def showprofile(interaction: discord.Interaction, member: discord.Member | None = None):
     try:
-        await interaction.response.defer(thinking=True)
-    except discord.errors.InteractionResponded:
+        if not interaction.response.is_done():
+            await interaction.response.defer(thinking=True)
+    except (discord.errors.InteractionResponded, discord.NotFound):
         pass
 
     if member is None:
