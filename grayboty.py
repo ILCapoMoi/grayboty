@@ -176,7 +176,7 @@ rank_requirements = {
     "Silver Knight": {"tp": 30, "mp": 18, "tier": "Middle-Tier [ ⁂ ]"}
 }
 
-# ─────────── /showprofile ───────────
+# ─────────── /showprofile COMPLETO Y CORRECTO ───────────
 @bot.tree.command(name="showprofile", description="Show Training & Mission Points")
 @app_commands.describe(member="Member to view; leave empty for yourself")
 async def showprofile(interaction: discord.Interaction, member: discord.Member | None = None):
@@ -189,11 +189,9 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     if member is None:
         member = interaction.user
 
-    # Buscar el perfil SIN crear (no upsert)
     doc = points_collection.find_one({"guild_id": interaction.guild.id, "user_id": member.id})
-    
+
     if not doc or (doc.get("tp", 0) == 0 and doc.get("mp", 0) == 0):
-        # Usuario no tiene perfil ni puntos, mostrar mensaje y salir
         msg = await interaction.followup.send(
             f"_**{member.display_name}** does not have any points to show their profile yet._"
         )
@@ -202,24 +200,6 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
             await msg.delete()
         return
 
-    # Orden de medallas (roles y emojis)
-    medal_roles_emojis = [
-        ("TGO Medal Of Honor", "<:tgohonor:1394844480258965664>"),
-        ("Moi Medal Of Honor", "<:moihonor:1394844519589216357>"),
-        ("Clxp Medal Of Honor", "<:clxphonor:1394844536022237244>"),
-        ("Michi's Medal Of Honor", "<:michishonor:1394844563499122728>"),
-        ("Ashen Medal Of Honor", "<:ashenhonor:1394844598928670810>"),
-        ("Gray Medal Of Honor", "<:grayhonor:1394844626661277736>"),
-    ]
-
-    member_roles = {role.name for role in member.roles}
-    medals_present = [emoji for role_name, emoji in medal_roles_emojis if role_name in member_roles]
-
-    medals_text = ""
-    if medals_present:
-        medals_text = "**Medals of honor**\n| " + " | ".join(medals_present) + " |"
-
-    # Perfil existe con puntos, mostrar info
     highest_rank_raw = get_highest_rank(member)
     current_rank = highest_rank_raw.split("|")[-1].strip() if "|" in highest_rank_raw else highest_rank_raw
 
@@ -229,55 +209,66 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     )
     embed.set_thumbnail(url=member.display_avatar.url)
 
+    # TP y MP
+    embed.add_field(name="**Training Points**", value=doc.get("tp", 0), inline=True)
+    embed.add_field(name="**Mission Points**", value=doc.get("mp", 0), inline=True)
+
+    # Laser
     embed.add_field(
         name="",
-        value=(
-            f"Training Points: {doc.get('tp', 0)}\n"
-            f"Mission Points: {doc.get('mp', 0)}\n"
-            f"<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209>"
-            f"<:R1Laser:1395746456681578628><:R1Laser:1395746456681578628>"
-            f"<:R1Laser:1395746456681578628><:R1Laser:1395746456681578628>"
-            f"<:R2Laser:1395746474293198949>\n"
-            f"{medals_text}"
-        ),
+        value="<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R2Laser:1395746474293198949>",
         inline=False
     )
 
+    # Medallas de Honor
+    medal_roles = {
+        1394844735553929397: "<:tgohonor:1394844480258965664>",
+        1381442617916657715: "<:moihonor:1394844519589216357>",
+        1381449456205037698: "<:clxphonor:1394844536022237244>",
+        1394844722828152874: "<:michishonor:1394844563499122728>",
+        1394833159215906858: "<:ashenhonor:1394844598928670810>",
+        1394833210218643496: "<:grayhonor:1394844626661277736>",
+    }
+    user_medals = [emoji for role_id, emoji in medal_roles.items() if discord.utils.get(member.roles, id=role_id)]
+    if user_medals:
+        embed.add_field(name="**Medals of honor**", value=f"| {' '.join(user_medals)} |", inline=False)
+
+    # Rank actual
+    embed.add_field(name="**Rank:**", value=f"{rank_emojis.get(current_rank, '')} | {current_rank}", inline=False)
+
+    # Siguiente rango
     next_rank = None
     if current_rank in rank_list:
         current_index = rank_list.index(current_rank)
         if current_index + 1 < len(rank_list):
             next_rank = rank_list[current_index + 1]
 
-    requirement_text = ""
     if next_rank in rank_requirements:
         req = rank_requirements[next_rank]
-        requirement_text = (
-            f"**Rank:**\n"
-            f"{rank_emojis.get(current_rank, '')} | {current_rank}\n\n"
+        req_text = (
             f"**Next rank requirements:** {rank_emojis.get(next_rank, '')} | {next_rank}\n"
-            f"· _**{req.get('tp', 0)}** training points_\n"
-            f"· _**{req.get('mp', 0)}** mission points_\n"
+            f"\u00b7 _**{req.get('tp', 0)}** training points_\n"
+            f"\u00b7 _**{req.get('mp', 0)}** mission points_\n"
         )
-        if req.get('tier'):
-            requirement_text += f"· _**{req['tier']}** level_"
-    elif current_rank == "Silver Knight" and next_rank == "Master - On trial":
-        requirement_text = (
-            "From this point on, promotions are based on selection by High Ranks (HR). "
-            "If you achieve the Level-Tier: **High-Tier**, you may join the elite division: __The Secret Fier__."
-        )
+        if req.get("tier"):
+            req_text += f"\u00b7 _**{req['tier']}** level_"
+        embed.add_field(name="", value=req_text, inline=False)
 
-    rank_section = f"**_Rank:_**\n{rank_emojis.get(current_rank, '')} | {current_rank}"   # Mostrar siempre el rango actual
-    if requirement_text:
-        embed.add_field(name="", value=f"{rank_section}\n\n{requirement_text}", inline=False)
-    else:
-        embed.add_field(name="", value=rank_section, inline=False)
+    elif current_rank == "Silver Knight" and next_rank == "Master - On trial":
+        embed.add_field(
+            name="",
+            value=(
+                "From this rank onwards, promotions are decided by HR."
+            ),
+            inline=False
+        )
 
     msg = await interaction.followup.send(embed=embed)
 
     await asyncio.sleep(25)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
+
 
 # ───────────── /addtp ─────────────
 @bot.tree.command(name="addtp", description="Add Training Points with automatic weighting")
