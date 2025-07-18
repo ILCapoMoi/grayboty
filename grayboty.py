@@ -232,7 +232,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         requirement_text = (
             f"**_Rank:_**\n"
             f"{rank_emojis.get(current_rank, '')} | {current_rank}\n\n"
-            f"__**Next rank requirements:**__ {rank_emojis.get(next_rank, '')} | {next_rank}\n"
+            f"**Next rank requirements:** {rank_emojis.get(next_rank, '')} | {next_rank}\n"
             f"· _**{req.get('tp', 0)}** training points_\n"
             f"· _**{req.get('mp', 0)}** mission points_\n"
         )
