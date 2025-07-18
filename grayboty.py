@@ -231,7 +231,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     }
     user_medals = [emoji for role_id, emoji in medal_roles.items() if discord.utils.get(member.roles, id=role_id)]
     if user_medals:
-        embed.add_field(name="**Medals of honor**", value=''.join(user_medals), inline=False)
+        embed.add_field(name="**Medals of honor**", value=" {} ".format(" | ".join(user_medals)), inline=False)
 
     # Rank actual
     embed.add_field(name="**Rank:**", value=f"{rank_emojis.get(current_rank, '')} | {current_rank}", inline=False)
@@ -247,9 +247,13 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     if current_rank in ["Gray Lord", "Ashen Lord"]:
         embed.add_field(name="", value="You are part of the TGO council.", inline=False)
 
-    elif current_rank in ["Silver Knight", "Master - On trial", "Grandmaster", "Master of Balance", "Gray Lord"]:
+    elif current_rank in ["Silver Knight", "Master - On trial", "Grandmaster", "Master of Balance"]:
         if next_rank:
-            embed.add_field(name="", value="From this rank onwards, promotions are decided by HR.", inline=False)
+            embed.add_field(
+               name="**Next rank:**",
+               value=f"{rank_emojis.get(next_rank, '')} | {next_rank}\nFrom this rank onwards, promotions are decided by HR.",
+               inline=False
+            )
 
     elif next_rank in rank_requirements:
         req = rank_requirements[next_rank]
