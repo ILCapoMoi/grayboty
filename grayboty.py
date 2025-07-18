@@ -271,7 +271,8 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     await asyncio.sleep(25)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
-
+       
+embed.add_field(name="\u200b", value="-# <:OficialTGO:1395904116072648764> The Gray Order", inline=False)
 # ───────────── /addtp ─────────────
 @bot.tree.command(name="addtp", description="Add Training Points with automatic weighting")
 @app_commands.describe(
