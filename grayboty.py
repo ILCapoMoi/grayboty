@@ -214,10 +214,11 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     embed.add_field(name="Training Points", value=doc.get("tp", 0), inline=True)
     embed.add_field(name="Mission Points", value=doc.get("mp", 0), inline=True)
     embed.add_field(
-        name="―" * 10,  # línea visual simple
+        name="\u200b",
         value="<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R2Laser:1395746474293198949>",
         inline=False
     )
+    embed.add_field(name="\u200b", value="\u200b", inline=False)  # separador visual
     embed.add_field(name="Rank", value=highest_rank_raw, inline=False)
 
     next_rank = None
