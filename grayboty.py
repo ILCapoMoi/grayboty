@@ -202,6 +202,23 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
             await msg.delete()
         return
 
+    # Orden de medallas (roles y emojis)
+    medal_roles_emojis = [
+        ("TGO Medal Of Honor", "<:tgohonor:1394844480258965664>"),
+        ("Moi Medal Of Honor", "<:moihonor:1394844519589216357>"),
+        ("Clxp Medal Of Honor", "<:clxphonor:1394844536022237244>"),
+        ("Michi's Medal Of Honor", "<:michishonor:1394844563499122728>"),
+        ("Ashen Medal Of Honor", "<:ashenhonor:1394844598928670810>"),
+        ("Gray Medal Of Honor", "<:grayhonor:1394844626661277736>"),
+    ]
+
+    member_roles = {role.name for role in member.roles}
+    medals_present = [emoji for role_name, emoji in medal_roles_emojis if role_name in member_roles]
+
+    medals_text = ""
+    if medals_present:
+        medals_text = "**Medals of honor**\n| " + " | ".join(medals_present) + " |"
+
     # Perfil existe con puntos, mostrar info
     highest_rank_raw = get_highest_rank(member)
     current_rank = highest_rank_raw.split("|")[-1].strip() if "|" in highest_rank_raw else highest_rank_raw
@@ -212,11 +229,17 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     )
     embed.set_thumbnail(url=member.display_avatar.url)
 
-    embed.add_field(name="Training Points", value=doc.get("tp", 0), inline=True)
-    embed.add_field(name="Mission Points", value=doc.get("mp", 0), inline=True)
     embed.add_field(
-        name="",  # sin texto arriba
-        value="<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R2Laser:1395746474293198949>\n\u200b",
+        name="",
+        value=(
+            f"Training Points: {doc.get('tp', 0)}\n"
+            f"Mission Points: {doc.get('mp', 0)}\n"
+            f"<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209>"
+            f"<:R1Laser:1395746456681578628><:R1Laser:1395746456681578628>"
+            f"<:R1Laser:1395746456681578628><:R1Laser:1395746456681578628>"
+            f"<:R2Laser:1395746474293198949>\n"
+            f"{medals_text}"
+        ),
         inline=False
     )
 
@@ -230,7 +253,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     if next_rank in rank_requirements:
         req = rank_requirements[next_rank]
         requirement_text = (
-            f"**_Rank:_**\n"
+            f"**Rank:**\n"
             f"{rank_emojis.get(current_rank, '')} | {current_rank}\n\n"
             f"**Next rank requirements:** {rank_emojis.get(next_rank, '')} | {next_rank}\n"
             f"· _**{req.get('tp', 0)}** training points_\n"
@@ -244,8 +267,11 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
             "If you achieve the Level-Tier: **High-Tier**, you may join the elite division: __The Secret Fier__."
         )
 
+    rank_section = f"**_Rank:_**\n{rank_emojis.get(current_rank, '')} | {current_rank}"   # Mostrar siempre el rango actual
     if requirement_text:
-        embed.add_field(name="", value=requirement_text, inline=False)
+        embed.add_field(name="", value=f"{rank_section}\n\n{requirement_text}", inline=False)
+    else:
+        embed.add_field(name="", value=rank_section, inline=False)
 
     msg = await interaction.followup.send(embed=embed)
 
