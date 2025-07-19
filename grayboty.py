@@ -403,7 +403,7 @@ async def addtier(
     tier_role_id = tier_roles.get(level_name)
 
     if not tier_role_id:
-        msg = await interaction.followup.send("❌ Invalid tier level. Please make sure it matches the tier_roles dictionary.")
+        msg = await interaction.followup.send("❌ Invalid tier level. Make sure you provide a valid Tier.")
         await asyncio.sleep(15)
         with contextlib.suppress((discord.Forbidden, discord.NotFound)):
             await msg.delete()
@@ -436,11 +436,11 @@ async def addtier(
 
     # Confirmación visual
     embed = discord.Embed(
-        title="✅ Tier Updated",
+        title="🎇 Tier Updated",
         description=f"{member.mention} has been assigned the Tier: **{level_name}**" +
                     (f"\nStars: **{stars}**" if stars else "") +
                     f"\nRoles given: {' | '.join(added_roles)}",
-        color=discord.Color.gold()
+        color=discord.Color.from_rgb(141, 228, 212)
     )
     msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(15)
