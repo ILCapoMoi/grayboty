@@ -380,16 +380,16 @@ async def addmp(
         await msg.delete()
        
 # ───────────── /addtier ─────────────
-@bot.tree.command(name="addtier", description="Set or update someone's Tier Level")
+@bot.tree.command(name="addtier", description="Set or update a member's tier level")
 @app_commands.describe(
-    member="Member to assign the Tier",
-    level="Tier level (must match a name in the tier_roles dictionary)",
-    stars="Optional: 2 for ⁑ or 3 for ⁂",
+    member="Member to assign tier",
+    level="Tier role to assign (mention the role)",
+    stars="Stars level, 2 or 3 (optional)",
 )
 async def addtier(
     interaction: discord.Interaction,
     member: discord.Member,
-    level: str,
+    level: discord.Role,
     stars: app_commands.Range[int, 2, 3] | None = None,
 ):
     caller = cast(discord.Member, interaction.user)
