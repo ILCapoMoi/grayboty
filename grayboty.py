@@ -122,22 +122,12 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 def has_permission(member: discord.Member) -> bool:
     return any(r.id in allowed_roles(member.guild.id) for r in member.roles)
-   
+
+# ───────────── RANK SYSTEM ─────────────
 rank_list = [
-    "Initiate",
-    "Acolyte",
-    "Disciple",
-    "Seeker",
-    "Knight",
-    "Gray Knight",
-    "Silver Knight",
-    "Master - On trial",
-    "Grandmaster",
-    "Master of Balance",
-    "Gray Lord",
-    "Ashen Lord",
-    "Gray Emperor",
-    "Elder Gray Emperor"
+    "Initiate", "Acolyte", "Disciple", "Seeker", "Knight", "Gray Knight",
+    "Silver Knight", "Master - On trial", "Grandmaster", "Master of Balance",
+    "Gray Lord", "Ashen Lord", "Gray Emperor", "Elder Gray Emperor"
 ]
 rank_emojis = {
     "Initiate": "<:Initate:1384843420316729435>",
@@ -155,18 +145,16 @@ rank_emojis = {
     "Gray Emperor": "<:Silver:1384690687189975090>",
     "Elder Gray Emperor": "<:gold:1384690646803284038>",
 }
-
 def get_highest_rank(member: discord.Member) -> str:
     member_roles = [role.name for role in member.roles]
     ranks_found = [rank for rank in rank_list if rank in member_roles]
     if not ranks_found:
         return "No Rank"
-
     highest_rank = max(ranks_found, key=lambda r: rank_list.index(r))
     emoji = rank_emojis.get(highest_rank, "")
     return f"{emoji} | {highest_rank}" if emoji else highest_rank
 
-# ────────────── Requisitos para cada rango ──────────────
+# ───────────── REQUISITOS DE RANGO ─────────────
 rank_requirements = {
     "Acolyte": {"tp": 1},
     "Disciple": {"tp": 5, "mp": 3, "tier": "Low-Tier"},
@@ -174,6 +162,29 @@ rank_requirements = {
     "Knight": {"tp": 18, "mp": 9, "tier": "Middle-Tier"},
     "Gray Knight": {"tp": 24, "mp": 12, "tier": "Middle-Tier [ ⁑ ]"},
     "Silver Knight": {"tp": 30, "mp": 18, "tier": "Middle-Tier [ ⁂ ]"}
+}
+
+# ───────────── MEDALLAS DE HONOR ─────────────
+medal_roles = {
+    1394844735553929397: "<:tgohonor:1394844480258965664>",
+    1381442617916657715: "<:moihonor:1394844519589216357>",
+    1381449456205037698: "<:clxphonor:1394844536022237244>",
+    1394844722828152874: "<:michishonor:1394844563499122728>",
+    1394833159215906858: "<:ashenhonor:1394844598928670810>",
+    1394833210218643496: "<:grayhonor:1394844626661277736>",
+}
+
+# ───────────── ROLES DE LEVEL-TIER ─────────────
+tier_roles = {
+    "✩ Legend-Tier": 1383883524783996998,
+    "Ashenlight-Tier [✶✶✶]": 1383882778474578080,
+    "Celestial-Tier [✶✶]": 1383882358343733330,
+    "Elite-Tier [✶]": 1383878896578986086,
+    "High-Tier": 1383020440993271839,
+    "Middle-Tier": 1383020382071820328,
+    "Low-Tier": 1383019912762626108,
+    "[ ⁂ ]": 1384516311354445965,
+    "[ ⁑ ]": 1384186134891855872,
 }
 
 # ─────────── /showprofile ───────────
@@ -192,9 +203,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     doc = points_collection.find_one({"guild_id": interaction.guild.id, "user_id": member.id})
 
     if not doc or (doc.get("tp", 0) == 0 and doc.get("mp", 0) == 0):
-        msg = await interaction.followup.send(
-            f"_**{member.display_name}** does not have any points to show their profile yet._"
-        )
+        msg = await interaction.followup.send(f"_**{member.display_name}** does not have any points to show their profile yet._")
         await asyncio.sleep(15)
         with contextlib.suppress((discord.Forbidden, discord.NotFound)):
             await msg.delete()
@@ -203,17 +212,12 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     highest_rank_raw = get_highest_rank(member)
     current_rank = highest_rank_raw.split("|")[-1].strip() if "|" in highest_rank_raw else highest_rank_raw
 
-    embed = discord.Embed(
-        title=f"{member.display_name}",
-        color=discord.Color.from_rgb(247, 240, 172)
-    )
+    embed = discord.Embed(title=f"{member.display_name}", color=discord.Color.from_rgb(247, 240, 172))
     embed.set_thumbnail(url=member.display_avatar.url)
 
-    # TP y MP
     embed.add_field(name="**Training Points**", value=doc.get("tp", 0), inline=True)
     embed.add_field(name="**Mission Points**", value=doc.get("mp", 0), inline=True)
 
-    # Laser
     embed.add_field(
         name="",
         value="<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R2Laser:1395746474293198949> " \
@@ -221,79 +225,55 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         inline=False
     )
 
-    # Medallas de Honor
-    medal_roles = {
-        1394844735553929397: "<:tgohonor:1394844480258965664>",
-        1381442617916657715: "<:moihonor:1394844519589216357>",
-        1381449456205037698: "<:clxphonor:1394844536022237244>",
-        1394844722828152874: "<:michishonor:1394844563499122728>",
-        1394833159215906858: "<:ashenhonor:1394844598928670810>",
-        1394833210218643496: "<:grayhonor:1394844626661277736>",
-    }
+    # Medallas
     user_medals = [emoji for role_id, emoji in medal_roles.items() if discord.utils.get(member.roles, id=role_id)]
     if user_medals:
         embed.add_field(name="**Medals of honor**", value=" {} ".format(" | ".join(user_medals)), inline=False)
 
-    # Rank actual
     embed.add_field(name="**Rank**", value=f"{rank_emojis.get(current_rank, '')} | {current_rank}", inline=False)
-    tier_roles = {
-	    "✩ Legend-Tier": 1383883524783996998,
-	    "Ashenlight-Tier [✶✶✶]": 1383882778474578080,
-	    "Celestial-Tier [✶✶]": 1383882358343733330,
-	    "Elite-Tier [✶]": 1383878896578986086,
-	    "High-Tier": 1383020440993271839,
-	    "Middle-Tier": 1383020382071820328,
-	    "Low-Tier": 1383019912762626108,
-	    "[ ⁂ ]": 1384516311354445965,
-	    "[ ⁑ ]": 1384186134891855872,
-	}
 
-	member_role_ids = [role.id for role in member.roles]
+    # Level-Tier
+    member_role_ids = [role.id for role in member.roles]
+    level_tier = None
 
-	level_tier = None
+    if tier_roles["✩ Legend-Tier"] in member_role_ids:
+        level_tier = "✩ Legend-Tier"
+    elif tier_roles["Ashenlight-Tier [✶✶✶]"] in member_role_ids:
+        level_tier = "Ashenlight-Tier [✶✶✶]"
+    elif tier_roles["Celestial-Tier [✶✶]"] in member_role_ids:
+        level_tier = "Celestial-Tier [✶✶]"
+    elif tier_roles["Elite-Tier [✶]"] in member_role_ids:
+        level_tier = "Elite-Tier [✶]"
+    else:
+        for base in ["High-Tier", "Middle-Tier", "Low-Tier"]:
+            if tier_roles[base] in member_role_ids:
+                if tier_roles["[ ⁂ ]"] in member_role_ids:
+                    level_tier = f"{base} [ ⁂ ]"
+                elif tier_roles["[ ⁑ ]"] in member_role_ids:
+                    level_tier = f"{base} [ ⁑ ]"
+                else:
+                    level_tier = base
+                break
 
-	if tier_roles["✩ Legend-Tier"] in member_role_ids:
-	    level_tier = "✩ Legend-Tier"
-	elif tier_roles["Ashenlight-Tier [✶✶✶]"] in member_role_ids:
-	    level_tier = "Ashenlight-Tier [✶✶✶]"
-	elif tier_roles["Celestial-Tier [✶✶]"] in member_role_ids:
-	    level_tier = "Celestial-Tier [✶✶]"
-	elif tier_roles["Elite-Tier [✶]"] in member_role_ids:
-	    level_tier = "Elite-Tier [✶]"
-	else:
-	    base_tiers = ["High-Tier", "Middle-Tier", "Low-Tier"]
-	    for base in base_tiers:
-	        if tier_roles[base] in member_role_ids:
-	            if tier_roles["[ ⁂ ]"] in member_role_ids:
-	                level_tier = f"{base} [ ⁂ ]"
-	            elif tier_roles["[ ⁑ ]"] in member_role_ids:
-	                level_tier = f"{base} [ ⁑ ]"
-	            else:
-	                level_tier = base
-	            break
+    if level_tier:
+        embed.add_field(name="**Level-Tier**", value=level_tier, inline=False)
 
-	if level_tier:
-	    embed.add_field(name="**Level-Tier**", value=level_tier, inline=False)
-
-    # Siguiente rango
+    # Requisitos o texto especial
     next_rank = None
     if current_rank in rank_list:
         current_index = rank_list.index(current_rank)
         if current_index + 1 < len(rank_list):
             next_rank = rank_list[current_index + 1]
 
-    # Requisitos o textos especiales
     if current_rank in ["Gray Lord", "Ashen Lord"]:
         embed.add_field(name="", value="You are part of the TGO council.", inline=False)
-
     elif current_rank in ["Silver Knight", "Master - On trial", "Grandmaster", "Master of Balance"]:
         if next_rank:
             embed.add_field(
-               name="**Next rank**",
-               value=f"{rank_emojis.get(next_rank, '')} | {next_rank}\nFrom this rank onwards, promotions are decided by HR.",
-               inline=False
+                name="**Next rank**",
+                value=f"{rank_emojis.get(next_rank, '')} | {next_rank}\nFrom this rank onwards, promotions are decided by HR.",
+                inline=False
             )
-
     elif next_rank in rank_requirements:
         req = rank_requirements[next_rank]
         req_text = (
@@ -306,12 +286,14 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         embed.add_field(name="", value=req_text, inline=False)
 
     embed.add_field(name="\u200b", value="-# <:OficialTGO:1395904116072648764> The Gray Order", inline=False)
-
     msg = await interaction.followup.send(embed=embed)
 
     await asyncio.sleep(25)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
+
+
+
 # ───────────── /addtp ─────────────
 @bot.tree.command(name="addtp", description="Add Training Points with automatic weighting")
 @app_commands.describe(
