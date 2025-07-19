@@ -293,7 +293,6 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         await msg.delete()
 
 
-
 # ───────────── /addtp ─────────────
 @bot.tree.command(name="addtp", description="Add Training Points with automatic weighting")
 @app_commands.describe(
@@ -380,6 +379,62 @@ async def addmp(
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
        
+# ───────────── /addtier ─────────────
+@bot.tree.command(name="addtier", description="Set or update someone's Tier Level")
+@app_commands.describe(
+    member="Member to assign the Tier",
+    level="Tier level (must match a name in the tier_roles dictionary)",
+    stars="Optional: 2 for ⁑ or 3 for ⁂",
+)
+async def addtier(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    level: str,
+    stars: app_commands.Range[int, 2, 3] | None = None,
+):
+    caller = cast(discord.Member, interaction.user)
+    if not has_permission(caller):
+        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
+        return
+
+    await interaction.response.defer()
+
+    tier_role_id = tier_roles.get(level)
+    if not tier_role_id:
+        await interaction.followup.send("❌ Invalid tier level. Please make sure it matches the tier_roles dictionary.")
+        return
+
+    # Remover cualquier rol de Tier anterior (solo de los definidos en tier_roles)
+    roles_to_remove = [discord.Object(rid) for rid in tier_roles.values() if discord.utils.get(member.roles, id=rid)]
+    await member.remove_roles(*roles_to_remove)
+
+    # Añadir el nuevo rol de Tier
+    await member.add_roles(discord.Object(tier_role_id))
+
+    added_roles = [f"<@&{tier_role_id}>"]
+
+    # Añadir estrella si se indicó (solo ⁑ o ⁂)
+    if stars:
+        star_label = "[ ⁑ ]" if stars == 2 else "[ ⁂ ]"
+        star_role_id = tier_roles.get(star_label)
+        if star_role_id:
+            await member.add_roles(discord.Object(star_role_id))
+            added_roles.append(f"<@&{star_role_id}>")
+
+    # Confirmación visual
+    embed = discord.Embed(
+        title="✅ Tier Updated",
+        description=f"{member.mention} has been assigned the Tier: **{level}**" +
+                    (f"\nStars: **{stars}**" if stars else "") +
+                    f"\nRoles given: {' | '.join(added_roles)}",
+        color=discord.Color.gold()
+    )
+    msg = await interaction.followup.send(embed=embed)
+    await asyncio.sleep(15)
+    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
+        await msg.delete()
+
+
 # ───────────── /deltp ─────────────
 @bot.tree.command(name="deltp", description="Remove Training Points from one or more members (Admin only)")
 @app_commands.describe(
