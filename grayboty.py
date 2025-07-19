@@ -236,6 +236,44 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
 
     # Rank actual
     embed.add_field(name="**Rank**", value=f"{rank_emojis.get(current_rank, '')} | {current_rank}", inline=False)
+    tier_roles = {
+	    "✩ Legend-Tier": 1383883524783996998,
+	    "Ashenlight-Tier [✶✶✶]": 1383882778474578080,
+	    "Celestial-Tier [✶✶]": 1383882358343733330,
+	    "Elite-Tier [✶]": 1383878896578986086,
+	    "High-Tier": 1383020440993271839,
+	    "Middle-Tier": 1383020382071820328,
+	    "Low-Tier": 1383019912762626108,
+	    "[ ⁂ ]": 1384516311354445965,
+	    "[ ⁑ ]": 1384186134891855872,
+	}
+
+	member_role_ids = [role.id for role in member.roles]
+
+	level_tier = None
+
+	if tier_roles["✩ Legend-Tier"] in member_role_ids:
+	    level_tier = "✩ Legend-Tier"
+	elif tier_roles["Ashenlight-Tier [✶✶✶]"] in member_role_ids:
+	    level_tier = "Ashenlight-Tier [✶✶✶]"
+	elif tier_roles["Celestial-Tier [✶✶]"] in member_role_ids:
+	    level_tier = "Celestial-Tier [✶✶]"
+	elif tier_roles["Elite-Tier [✶]"] in member_role_ids:
+	    level_tier = "Elite-Tier [✶]"
+	else:
+	    base_tiers = ["High-Tier", "Middle-Tier", "Low-Tier"]
+	    for base in base_tiers:
+	        if tier_roles[base] in member_role_ids:
+	            if tier_roles["[ ⁂ ]"] in member_role_ids:
+	                level_tier = f"{base} [ ⁂ ]"
+	            elif tier_roles["[ ⁑ ]"] in member_role_ids:
+	                level_tier = f"{base} [ ⁑ ]"
+	            else:
+	                level_tier = base
+	            break
+
+	if level_tier:
+	    embed.add_field(name="**Level-Tier**", value=level_tier, inline=False)
 
     # Siguiente rango
     next_rank = None
