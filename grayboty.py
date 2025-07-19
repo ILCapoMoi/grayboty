@@ -176,7 +176,7 @@ rank_requirements = {
     "Silver Knight": {"tp": 30, "mp": 18, "tier": "Middle-Tier [ ⁂ ]"}
 }
 
-# ─────────── /showprofile COMPLETO Y CORRECTO ───────────
+# ─────────── /showprofile ───────────
 @bot.tree.command(name="showprofile", description="Show Training & Mission Points")
 @app_commands.describe(member="Member to view; leave empty for yourself")
 async def showprofile(interaction: discord.Interaction, member: discord.Member | None = None):
@@ -235,7 +235,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         embed.add_field(name="**Medals of honor**", value=" {} ".format(" | ".join(user_medals)), inline=False)
 
     # Rank actual
-    embed.add_field(name="**Rank:**", value=f"{rank_emojis.get(current_rank, '')} | {current_rank}", inline=False)
+    embed.add_field(name="**Rank**", value=f"{rank_emojis.get(current_rank, '')} | {current_rank}", inline=False)
 
     # Siguiente rango
     next_rank = None
@@ -251,7 +251,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     elif current_rank in ["Silver Knight", "Master - On trial", "Grandmaster", "Master of Balance"]:
         if next_rank:
             embed.add_field(
-               name="**Next rank:**",
+               name="**Next rank**",
                value=f"{rank_emojis.get(next_rank, '')} | {next_rank}\nFrom this rank onwards, promotions are decided by HR.",
                inline=False
             )
@@ -259,7 +259,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     elif next_rank in rank_requirements:
         req = rank_requirements[next_rank]
         req_text = (
-            f"**Next rank requirements:** {rank_emojis.get(next_rank, '')} | {next_rank}\n"
+            f"**Next rank**\n{rank_emojis.get(next_rank, '')} | {next_rank}\n"
             f"\u00b7 _**{req.get('tp', 0)}** training points_\n"
             f"\u00b7 _**{req.get('mp', 0)}** mission points_\n"
         )
