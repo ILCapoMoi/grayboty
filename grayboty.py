@@ -399,12 +399,25 @@ async def addtier(
 
     await interaction.response.defer()
 
-    tier_role_id = tier_roles.get(level)
+    level_name = level.name
+    tier_role_id = tier_roles.get(level_name)
+
     if not tier_role_id:
-        await interaction.followup.send("❌ Invalid tier level. Please make sure it matches the tier_roles dictionary.")
+        msg = await interaction.followup.send("❌ Invalid tier level. Please make sure it matches the tier_roles dictionary.")
+        await asyncio.sleep(15)
+        with contextlib.suppress((discord.Forbidden, discord.NotFound)):
+            await msg.delete()
         return
 
-    # Remover cualquier rol de Tier anterior (solo de los definidos en tier_roles)
+    # Verificar si las estrellas son válidas para el nivel
+    if stars and level_name not in ("Low-Tier", "Middle-Tier", "High-Tier"):
+        msg = await interaction.followup.send("❌ Only Low-Tier, Middle-Tier, and High-Tier can receive stars.")
+        await asyncio.sleep(15)
+        with contextlib.suppress((discord.Forbidden, discord.NotFound)):
+            await msg.delete()
+        return
+
+    # Remover cualquier Tier anterior (incluyendo estrellas si las tiene)
     roles_to_remove = [discord.Object(rid) for rid in tier_roles.values() if discord.utils.get(member.roles, id=rid)]
     await member.remove_roles(*roles_to_remove)
 
@@ -413,7 +426,7 @@ async def addtier(
 
     added_roles = [f"<@&{tier_role_id}>"]
 
-    # Añadir estrella si se indicó (solo ⁑ o ⁂)
+    # Añadir estrella si es válida
     if stars:
         star_label = "[ ⁑ ]" if stars == 2 else "[ ⁂ ]"
         star_role_id = tier_roles.get(star_label)
@@ -424,7 +437,7 @@ async def addtier(
     # Confirmación visual
     embed = discord.Embed(
         title="✅ Tier Updated",
-        description=f"{member.mention} has been assigned the Tier: **{level}**" +
+        description=f"{member.mention} has been assigned the Tier: **{level_name}**" +
                     (f"\nStars: **{stars}**" if stars else "") +
                     f"\nRoles given: {' | '.join(added_roles)}",
         color=discord.Color.gold()
