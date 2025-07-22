@@ -186,6 +186,23 @@ tier_roles = {
     "[ ⁂ ]": 1384516311354445965,
     "[ ⁑ ]": 1384186134891855872,
 }
+# ───────────── ORDEN RANGOS GRUPO ─────────────
+group_ranks_order = [
+    "Elder Gray Emperor",
+    "Gray Emperor",
+    "Ashen Lord",
+    "Gray Lord",
+    "Master of Balance",
+    "Grandmaster",
+    "Master - On trial",
+    "Silver Knight",
+    "Gray Knight",
+    "Knight",
+    "Seeker",
+    "Disciple",
+    "Acolyte",
+    "Initiate",
+]
 
 # ─────────── /showprofile ───────────
 @bot.tree.command(name="showprofile", description="Show Training & Mission Points")
@@ -460,80 +477,115 @@ async def addtier(
 
 
 # ───────────── /tierlist ─────────────
-@bot.tree.command(name="tierlist", description="Show all members ordered by Level-Tier")
+@bot.tree.command(name="tierlist", description="Show top 25 members sorted by Tier and group rank")
 async def tierlist(interaction: discord.Interaction):
     await interaction.response.defer()
 
-    # Jerarquía de tiers para ordenar
+    guild = interaction.guild
+    members = guild.members
+
+    # Orden de los tiers de mayor a menor (mejor primero)
     tier_order = [
         "✩ Legend-Tier",
         "★ Ashenlight-Tier",
-        "Celestial-Tier [ ⁂ ]",
-        "Celestial-Tier [ ⁑ ]",
         "Celestial-Tier",
-        "Elite-Tier [ ⁂ ]",
-        "Elite-Tier [ ⁑ ]",
         "Elite-Tier",
-        "High-Tier [ ⁂ ]",
-        "High-Tier [ ⁑ ]",
         "High-Tier",
-        "Middle-Tier [ ⁂ ]",
-        "Middle-Tier [ ⁑ ]",
         "Middle-Tier",
-        "Low-Tier [ ⁂ ]",
-        "Low-Tier [ ⁑ ]",
-        "Low-Tier",
+        "Low-Tier"
     ]
 
-    # Mapeo rápido para prioridad
-    tier_rank = {tier: i for i, tier in enumerate(tier_order)}
+    # Orden de rangos de grupo de mayor a menor (ya definido globalmente)
+    # group_ranks_order = [...]
 
     def get_member_tier(member: discord.Member) -> str | None:
-        roles = {role.id for role in member.roles}
-        # Check full tiers with stars first
+        """
+        Obtiene el tier completo del miembro (incluyendo estrellas si las tiene).
+        Devuelve None si no tiene Tier.
+        """
+        role_ids = {role.id for role in member.roles}
+        base_tier = None
+        # Buscar base tier
         for tier in tier_order:
-            if " [ ⁂ ]" in tier:
-                base = tier.replace(" [ ⁂ ]", "")
-                if tier_roles.get(base) in roles and tier_roles["[ ⁂ ]"] in roles:
-                    return tier
-            elif " [ ⁑ ]" in tier:
-                base = tier.replace(" [ ⁑ ]", "")
-                if tier_roles.get(base) in roles and tier_roles["[ ⁑ ]"] in roles:
-                    return tier
-            else:
-                # If no stars tier, check base only if no star roles
-                if tier_roles.get(tier) in roles and not (tier_roles["[ ⁂ ]"] in roles or tier_roles["[ ⁑ ]"] in roles):
-                    return tier
+            if tier_roles.get(tier) in role_ids:
+                base_tier = tier
+                break
+        if not base_tier:
+            return None
+
+        # Añadir estrellas si las tiene
+        if tier_roles.get("[ ⁂ ]") in role_ids:
+            return f"{base_tier} [ ⁂ ]"
+        elif tier_roles.get("[ ⁑ ]") in role_ids:
+            return f"{base_tier} [ ⁑ ]"
+        else:
+            return base_tier
+
+    def get_member_rank(member: discord.Member) -> str | None:
+        """
+        Obtiene el rango principal del miembro según group_ranks_order.
+        """
+        member_role_names = {role.name for role in member.roles}
+        for rank in group_ranks_order:
+            if rank in member_role_names:
+                return rank
         return None
 
+    # Construimos lista de miembros con Tier y rango
     members_with_tier = []
-    for member in interaction.guild.members:
+    for member in members:
         tier = get_member_tier(member)
         if tier:
-            members_with_tier.append((tier_rank[tier], member.display_name, tier))
-
-    # Ordenar por tier (menor índice = mayor rango) y luego alfabéticamente
-    members_with_tier.sort(key=lambda x: (x[0], x[1].lower()))
+            rank = get_member_rank(member) or "Initiate"  # fallback a Initiate si no tiene rango
+            members_with_tier.append((member, tier, rank))
 
     if not members_with_tier:
-        await interaction.followup.send("No members with Level-Tier roles found.")
+        await interaction.followup.send("No members with Tier roles found.")
         return
 
-    # Preparar texto para embed (máximo 25 miembros para no saturar)
+    # Función para obtener índice de tier (menor índice = mejor tier)
+    def tier_index(tier_name: str) -> int:
+        base = tier_name.split(" ")[0]  # eliminar estrellas
+        return tier_order.index(base) if base in tier_order else len(tier_order)
+
+    # Función para obtener índice de rango (menor índice = mejor rango)
+    def rank_index(rank_name: str) -> int:
+        return group_ranks_order.index(rank_name) if rank_name in group_ranks_order else len(group_ranks_order)
+
+    # Ordenar lista por Tier y luego por rango
+    members_with_tier.sort(key=lambda x: (tier_index(x[1]), rank_index(x[2])))
+
+    # Limitar a los 25 mejores
+    top_members = members_with_tier[:25]
+
+    # Construir líneas para el embed, enumeradas
     lines = []
-    for _, name, tier in members_with_tier[:25]:
-        lines.append(f"**{name}** — {tier}")
+    for i, (member, tier, _) in enumerate(top_members, start=1):
+        lines.append(f"{i}. {member.display_name} / {tier}")
 
+    # Buscar la posición del invocador en la lista completa
+    invoker_pos = None
+    invoker_id = interaction.user.id
+    for i, (member, _, _) in enumerate(members_with_tier, start=1):
+        if member.id == invoker_id:
+            invoker_pos = i
+            break
+
+    # Texto footer con posición del invocador (en inglés)
+    footer_text = f"Your position is: {invoker_pos}" if invoker_pos else "You have no Tier position."
+
+    # Crear embed con color blanco
     embed = discord.Embed(
-        title="📜 Level-Tier List",
+        title="🏆 Tier Leaderboard",
         description="\n".join(lines),
-        color=discord.Color.blurple()
+        color=discord.Color.from_rgb(255, 255, 255)  # blanco puro
     )
-    embed.set_footer(text="The Gray Order - Tier list auto-deletes in 1 minute")
+    embed.set_footer(text=footer_text)
 
+    # Enviar embed y borrar tras 60 segundos
     msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(60)
-    with contextlib.suppress(discord.NotFound, discord.Forbidden):
+    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
 
