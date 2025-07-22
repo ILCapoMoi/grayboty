@@ -177,9 +177,9 @@ medal_roles = {
 # ───────────── ROLES DE LEVEL-TIER ─────────────
 tier_roles = {
     "✩ Legend-Tier": 1383883524783996998,
-    "Ashenlight-Tier [✶✶✶]": 1383882778474578080,
-    "Celestial-Tier [✶✶]": 1383882358343733330,
-    "Elite-Tier [✶]": 1383878896578986086,
+    "★ Ashenlight-Tier": 1383882778474578080,
+    "Celestial-Tier": 1383882358343733330,
+    "Elite-Tier": 1383878896578986086,
     "High-Tier": 1383020440993271839,
     "Middle-Tier": 1383020382071820328,
     "Low-Tier": 1383019912762626108,
@@ -238,14 +238,14 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
 
     if tier_roles["✩ Legend-Tier"] in member_role_ids:
         level_tier = "✩ Legend-Tier"
-    elif tier_roles["Ashenlight-Tier [✶✶✶]"] in member_role_ids:
-        level_tier = "Ashenlight-Tier [✶✶✶]"
-    elif tier_roles["Celestial-Tier [✶✶]"] in member_role_ids:
-        level_tier = "Celestial-Tier [✶✶]"
-    elif tier_roles["Elite-Tier [✶]"] in member_role_ids:
-        level_tier = "Elite-Tier [✶]"
+    elif tier_roles["★ Ashenlight-Tier"] in member_role_ids:
+        level_tier = "★ Ashenlight-Tier"
+    elif tier_roles["Celestial-Tier"] in member_role_ids:
+        level_tier = "Celestial-Tier"
+    elif tier_roles["Elite-Tier"] in member_role_ids:
+        level_tier = "Elite-Tier"
     else:
-        for base in ["High-Tier", "Middle-Tier", "Low-Tier"]:
+        for base in ["Celestial-Tier", "Elite-Tier", "High-Tier", "Middle-Tier", "Low-Tier"]:
             if tier_roles[base] in member_role_ids:
                 if tier_roles["[ ⁂ ]"] in member_role_ids:
                     level_tier = f"{base} [ ⁂ ]"
@@ -409,30 +409,41 @@ async def addtier(
             await msg.delete()
         return
 
-    # Verificar si las estrellas son válidas para el nivel
-    if stars and level_name not in ("Low-Tier", "Middle-Tier", "High-Tier"):
-        msg = await interaction.followup.send("❌ Only Low-Tier, Middle-Tier, and High-Tier can receive stars.")
+    # Estrellas válidas solo para estos niveles
+    valid_star_levels = {"Low-Tier", "Middle-Tier", "High-Tier", "Elite-Tier", "Celestial-Tier"}
+    if stars and level_name not in valid_star_levels:
+        msg = await interaction.followup.send("❌ Only Low-Tier, Middle-Tier, High-Tier, Elite-Tier and Celestial-Tier can receive stars.")
         await asyncio.sleep(15)
         with contextlib.suppress((discord.Forbidden, discord.NotFound)):
             await msg.delete()
         return
 
-    # Remover cualquier Tier anterior (incluyendo estrellas si las tiene)
-    roles_to_remove = [discord.Object(rid) for rid in tier_roles.values() if discord.utils.get(member.roles, id=rid)]
-    await member.remove_roles(*roles_to_remove)
+    # Eliminar cualquier Tier anterior (incluyendo estrellas previas)
+    roles_to_remove = []
+    for rid in tier_roles.values():
+        role_obj = discord.utils.get(interaction.guild.roles, id=rid)
+        if role_obj and role_obj in member.roles:
+            roles_to_remove.append(role_obj)
+
+    if roles_to_remove:
+        await member.remove_roles(*roles_to_remove)
 
     # Añadir el nuevo rol de Tier
-    await member.add_roles(discord.Object(tier_role_id))
+    new_tier_role = discord.utils.get(interaction.guild.roles, id=tier_role_id)
+    added_roles = []
 
-    added_roles = [f"<@&{tier_role_id}>"]
+    if new_tier_role:
+        await member.add_roles(new_tier_role)
+        added_roles.append(new_tier_role.mention)
 
     # Añadir estrella si es válida
     if stars:
         star_label = "[ ⁑ ]" if stars == 2 else "[ ⁂ ]"
         star_role_id = tier_roles.get(star_label)
-        if star_role_id:
-            await member.add_roles(discord.Object(star_role_id))
-            added_roles.append(f"<@&{star_role_id}>")
+        star_role = discord.utils.get(interaction.guild.roles, id=star_role_id)
+        if star_role:
+            await member.add_roles(star_role)
+            added_roles.append(star_role.mention)
 
     # Confirmación visual
     embed = discord.Embed(
@@ -445,6 +456,84 @@ async def addtier(
     msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(15)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
+        await msg.delete()
+
+
+# ───────────── /tierlist ─────────────
+@bot.tree.command(name="tierlist", description="Show all members ordered by Level-Tier")
+async def tierlist(interaction: discord.Interaction):
+    await interaction.response.defer()
+
+    # Jerarquía de tiers para ordenar
+    tier_order = [
+        "✩ Legend-Tier",
+        "★ Ashenlight-Tier",
+        "Celestial-Tier [ ⁂ ]",
+        "Celestial-Tier [ ⁑ ]",
+        "Celestial-Tier",
+        "Elite-Tier [ ⁂ ]",
+        "Elite-Tier [ ⁑ ]",
+        "Elite-Tier",
+        "High-Tier [ ⁂ ]",
+        "High-Tier [ ⁑ ]",
+        "High-Tier",
+        "Middle-Tier [ ⁂ ]",
+        "Middle-Tier [ ⁑ ]",
+        "Middle-Tier",
+        "Low-Tier [ ⁂ ]",
+        "Low-Tier [ ⁑ ]",
+        "Low-Tier",
+    ]
+
+    # Mapeo rápido para prioridad
+    tier_rank = {tier: i for i, tier in enumerate(tier_order)}
+
+    def get_member_tier(member: discord.Member) -> str | None:
+        roles = {role.id for role in member.roles}
+        # Check full tiers with stars first
+        for tier in tier_order:
+            if " [ ⁂ ]" in tier:
+                base = tier.replace(" [ ⁂ ]", "")
+                if tier_roles.get(base) in roles and tier_roles["[ ⁂ ]"] in roles:
+                    return tier
+            elif " [ ⁑ ]" in tier:
+                base = tier.replace(" [ ⁑ ]", "")
+                if tier_roles.get(base) in roles and tier_roles["[ ⁑ ]"] in roles:
+                    return tier
+            else:
+                # If no stars tier, check base only if no star roles
+                if tier_roles.get(tier) in roles and not (tier_roles["[ ⁂ ]"] in roles or tier_roles["[ ⁑ ]"] in roles):
+                    return tier
+        return None
+
+    members_with_tier = []
+    for member in interaction.guild.members:
+        tier = get_member_tier(member)
+        if tier:
+            members_with_tier.append((tier_rank[tier], member.display_name, tier))
+
+    # Ordenar por tier (menor índice = mayor rango) y luego alfabéticamente
+    members_with_tier.sort(key=lambda x: (x[0], x[1].lower()))
+
+    if not members_with_tier:
+        await interaction.followup.send("No members with Level-Tier roles found.")
+        return
+
+    # Preparar texto para embed (máximo 25 miembros para no saturar)
+    lines = []
+    for _, name, tier in members_with_tier[:25]:
+        lines.append(f"**{name}** — {tier}")
+
+    embed = discord.Embed(
+        title="📜 Level-Tier List",
+        description="\n".join(lines),
+        color=discord.Color.blurple()
+    )
+    embed.set_footer(text="The Gray Order - Tier list auto-deletes in 1 minute")
+
+    msg = await interaction.followup.send(embed=embed)
+    await asyncio.sleep(60)
+    with contextlib.suppress(discord.NotFound, discord.Forbidden):
         await msg.delete()
 
 
