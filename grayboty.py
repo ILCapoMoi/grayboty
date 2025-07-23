@@ -495,9 +495,6 @@ async def tierlist(interaction: discord.Interaction):
         "Low-Tier"
     ]
 
-    # Orden de rangos de grupo de mayor a menor (ya definido globalmente)
-    # group_ranks_order = [...]
-
     def get_member_tier(member: discord.Member) -> str | None:
         """
         Obtiene el tier completo del miembro (incluyendo estrellas si las tiene).
@@ -505,7 +502,6 @@ async def tierlist(interaction: discord.Interaction):
         """
         role_ids = {role.id for role in member.roles}
         base_tier = None
-        # Buscar base tier
         for tier in tier_order:
             if tier_roles.get(tier) in role_ids:
                 base_tier = tier
@@ -513,7 +509,6 @@ async def tierlist(interaction: discord.Interaction):
         if not base_tier:
             return None
 
-        # Añadir estrellas si las tiene
         if tier_roles.get("[ ⁂ ]") in role_ids:
             return f"{base_tier} [ ⁂ ]"
         elif tier_roles.get("[ ⁑ ]") in role_ids:
@@ -531,39 +526,46 @@ async def tierlist(interaction: discord.Interaction):
                 return rank
         return None
 
-    # Construimos lista de miembros con Tier y rango
     members_with_tier = []
     for member in members:
         tier = get_member_tier(member)
         if tier:
-            rank = get_member_rank(member) or "Initiate"  # fallback a Initiate si no tiene rango
+            rank = get_member_rank(member) or "Initiate"
             members_with_tier.append((member, tier, rank))
 
     if not members_with_tier:
         await interaction.followup.send("No members with Tier roles found.")
         return
 
-    # Función para obtener índice de tier (menor índice = mejor tier)
-    def tier_index(tier_name: str) -> int:
-        base = tier_name.split(" ")[0]  # eliminar estrellas
-        return tier_order.index(base) if base in tier_order else len(tier_order)
+    def parse_tier_components(tier_name: str):
+        """
+        Devuelve una tupla con: (índice base, estrellas) para ordenar correctamente.
+        """
+        stars = 0
+        if "[ ⁂ ]" in tier_name:
+            stars = 3
+        elif "[ ⁑ ]" in tier_name:
+            stars = 2
 
-    # Función para obtener índice de rango (menor índice = mejor rango)
+        base = tier_name.split(" [")[0].strip()
+        base_index = tier_order.index(base) if base in tier_order else len(tier_order)
+        return (base_index, -stars)  # Más estrellas = mejor
+
     def rank_index(rank_name: str) -> int:
         return group_ranks_order.index(rank_name) if rank_name in group_ranks_order else len(group_ranks_order)
 
-    # Ordenar lista por Tier y luego por rango
-    members_with_tier.sort(key=lambda x: (tier_index(x[1]), rank_index(x[2])))
+    # Ordenar: primero Tier base, luego estrellas (más estrellas mejor), luego rango (más alto mejor)
+    members_with_tier.sort(key=lambda x: (
+        parse_tier_components(x[1]),
+        rank_index(x[2])
+    ))
 
-    # Limitar a los 25 mejores
     top_members = members_with_tier[:25]
 
-    # Construir líneas para el embed, enumeradas
     lines = []
     for i, (member, tier, _) in enumerate(top_members, start=1):
-        lines.append(f"{i}. {member.display_name} / {tier}")
+        lines.append(f"{i}. {member.display_name} — {tier}")
 
-    # Buscar la posición del invocador en la lista completa
     invoker_pos = None
     invoker_id = interaction.user.id
     for i, (member, _, _) in enumerate(members_with_tier, start=1):
@@ -571,23 +573,20 @@ async def tierlist(interaction: discord.Interaction):
             invoker_pos = i
             break
 
-    # Texto footer con posición del invocador (en inglés)
     footer_text = f"Your position is: {invoker_pos}" if invoker_pos else "You have no Tier position."
 
-    # Crear embed con color blanco
     embed = discord.Embed(
         title="🏆 Tier Leaderboard",
         description="\n".join(lines),
-        color=discord.Color.from_rgb(255, 255, 255)  # blanco puro
+        color=discord.Color.from_rgb(255, 255, 255)  # Blanco puro
     )
     embed.set_footer(text=footer_text)
 
-    # Enviar embed y borrar tras 60 segundos
     msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(60)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
-
+       
 
 # ───────────── /deltp ─────────────
 @bot.tree.command(name="deltp", description="Remove Training Points from one or more members (Admin only)")
