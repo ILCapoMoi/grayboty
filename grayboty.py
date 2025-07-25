@@ -250,7 +250,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     embed.add_field(
         name="",
         value="<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R2Laser:1395746474293198949> " \
-          "<:M2LaserInv:1395909504482283750><:M1Laser:1395909456986112110><:M1Laser:1395909456986112110><:M1Laser:1395909456986112110><:M1Laser:1395909456986112110><:H2LaserInv:1395909361494396948><:H1LaserInv:1395909332339790065>",
+              "<:M2LaserInv:1395909504482283750><:M1Laser:1395909456986112110><:M1Laser:1395909456986112110><:M1Laser:1395909456986112110><:M1Laser:1395909456986112110><:H2LaserInv:1395909361494396948><:H1LaserInv:1395909332339790065>",
         inline=False
     )
 
@@ -264,6 +264,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     # Level-Tier
     member_role_ids = [role.id for role in member.roles]
     level_tier = None
+    stars = ""
 
     if tier_roles["✩ Legend-Tier"] in member_role_ids:
         level_tier = "✩ Legend-Tier"
@@ -276,18 +277,17 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     else:
         for base in ["Celestial-Tier", "Elite-Tier", "High-Tier", "Middle-Tier", "Low-Tier"]:
             if tier_roles[base] in member_role_ids:
+                level_tier = base
                 if tier_roles["[ ⁂ ]"] in member_role_ids:
-                    level_tier = f"{base} [ ⁂ ]"
+                    stars = " ⁂"
                 elif tier_roles["[ ⁑ ]"] in member_role_ids:
-                    level_tier = f"{base} [ ⁑ ]"
-                else:
-                    level_tier = base
+                    stars = " ⁑"
                 break
 
     if level_tier:
-        base_tier = level_tier.split(" [")[0].strip()
+        base_tier = level_tier
         emoji = tier_emojis.get(base_tier, "")
-        embed.add_field(name="**Level-Tier**", value=f"{emoji} {level_tier}", inline=False)
+        embed.add_field(name="**Level-Tier**", value=f"{emoji} {base_tier}{stars}", inline=False)
 
     # Requisitos o texto especial
     next_rank = None
