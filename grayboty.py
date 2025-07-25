@@ -520,10 +520,7 @@ async def tierlist(interaction: discord.Interaction):
         else:
             return base_tier
 
-    def get_member_rank(member: discord.Member) -> str | None:
-        """
-        Obtiene el rango principal del miembro según group_ranks_order.
-        """
+    def get_member_rank(member: discord.Member) -> str | None:   # Obtiene el rango principal del miembro según group_ranks_order.
         member_role_names = {role.name for role in member.roles}
         for rank in group_ranks_order:
             if rank in member_role_names:
@@ -568,7 +565,10 @@ async def tierlist(interaction: discord.Interaction):
 
     lines = []
     for i, (member, tier, _) in enumerate(top_members, start=1):
-        lines.append(f"{i}. {member.display_name} — {tier}")
+        base_tier = tier.split(" [")[0].strip()
+        emoji = tier_emojis.get(base_tier, "")
+        name = member.display_name.ljust(20)
+        lines.append(f"{i:>2}. {emoji} {name} {tier}")
 
     invoker_pos = None
     invoker_id = interaction.user.id
@@ -590,7 +590,7 @@ async def tierlist(interaction: discord.Interaction):
     await asyncio.sleep(60)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
-       
+
 
 # ───────────── /deltp ─────────────
 @bot.tree.command(name="deltp", description="Remove Training Points from one or more members (Admin only)")
