@@ -555,15 +555,22 @@ async def tierlist(interaction: discord.Interaction):
 
     top_members = members_with_tier[:25]
 
-    # Determinar el ancho máximo para los nombres
-    max_name_len = max(len(m.display_name) for m, _, _ in top_members) if top_members else 20
+    # Determinar el ancho máximo para los nombres + alias si existen
+    def full_name(member: discord.Member) -> str:
+        # Mostrar alias entre paréntesis si existe (nombre de usuario discord diferente)
+        if member.display_name != member.name:
+            return f"{member.display_name} (@{member.name})"
+        else:
+            return member.display_name
+
+    max_name_len = max(len(full_name(m)) for m, _, _ in top_members) if top_members else 20
 
     lines = []
     for i, (member, tier, _) in enumerate(top_members, start=1):
         base_tier = tier.split(" [")[0].strip()
         emoji = tier_emojis.get(base_tier, "")
-        name = member.display_name.ljust(max_name_len)
-        lines.append(f"{i:>2}. {emoji} {name} — {tier}")
+        name_str = full_name(member).ljust(max_name_len)
+        lines.append(f"{i:>2}. {emoji} {name_str} | {tier}")
 
     invoker_pos = None
     invoker_id = interaction.user.id
