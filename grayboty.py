@@ -266,28 +266,18 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     level_tier = None
     stars = ""
 
-    if tier_roles["✩ Legend-Tier"] in member_role_ids:
-        level_tier = "✩ Legend-Tier"
-    elif tier_roles["★ Ashenlight-Tier"] in member_role_ids:
-        level_tier = "★ Ashenlight-Tier"
-    elif tier_roles["Celestial-Tier"] in member_role_ids:
-        level_tier = "Celestial-Tier"
-    elif tier_roles["Elite-Tier"] in member_role_ids:
-        level_tier = "Elite-Tier"
-    else:
-        for base in ["Celestial-Tier", "Elite-Tier", "High-Tier", "Middle-Tier", "Low-Tier"]:
-            if tier_roles[base] in member_role_ids:
-                level_tier = base
-                if tier_roles["[ ⁂ ]"] in member_role_ids:
-                    stars = " ⁂"
-                elif tier_roles["[ ⁑ ]"] in member_role_ids:
-                    stars = " ⁑"
-                break
+    for base in ["✩ Legend-Tier", "★ Ashenlight-Tier", "Celestial-Tier", "Elite-Tier", "High-Tier", "Middle-Tier", "Low-Tier"]:
+        if tier_roles[base] in member_role_ids:
+            level_tier = base
+            break
 
     if level_tier:
-        base_tier = level_tier
-        emoji = tier_emojis.get(base_tier, "")
-        embed.add_field(name="**Level-Tier**", value=f"{emoji} {base_tier}{stars}", inline=False)
+        if tier_roles.get("[ ⁂ ]") in member_role_ids:
+            stars = " [ ⁂ ]"
+        elif tier_roles.get("[ ⁑ ]") in member_role_ids:
+            stars = " [ ⁑ ]"
+        emoji = tier_emojis.get(level_tier, "")
+        embed.add_field(name="**Level-Tier**", value=f"{emoji} {level_tier}{stars}", inline=False)
 
     # Requisitos o texto especial
     next_rank = None
