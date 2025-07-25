@@ -186,6 +186,18 @@ tier_roles = {
     "[ ⁂ ]": 1384516311354445965,
     "[ ⁑ ]": 1384186134891855872,
 }
+
+# ───────────── EMOJIS DE LEVEL-TIER ─────────────
+tier_emojis = {
+    "✩ Legend-Tier": "<:LegendTier:1398285409372606484>",
+    "★ Ashenlight-Tier": "<:AshenTier:1398285363218485409>",
+    "Celestial-Tier": "<:CelestialTier:1398285318351880253>",
+    "Elite-Tier": "<:EliteTier:1398285285611012157>",
+    "High-Tier": "<:HighTier:1398285236705431574>",
+    "Middle-Tier": "<:MiddleTier:1398285202257739796>",
+    "Low-Tier": "<:LowTier:1398285157101736058>"
+}
+
 # ───────────── ORDEN RANGOS GRUPO ─────────────
 group_ranks_order = [
     "Elder Gray Emperor",
@@ -273,7 +285,9 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
                 break
 
     if level_tier:
-        embed.add_field(name="**Level-Tier**", value=level_tier, inline=False)
+        base_tier = level_tier.split(" [")[0]  # Extrae solo el nombre base del Tier
+        emoji = tier_emojis.get(base_tier, "")
+        embed.add_field(name="**Level-Tier**", value=f"{emoji} {level_tier}", inline=False)
 
     # Requisitos o texto especial
     next_rank = None
