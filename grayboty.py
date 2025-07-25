@@ -500,10 +500,6 @@ async def tierlist(interaction: discord.Interaction):
     ]
 
     def get_member_tier(member: discord.Member) -> str | None:
-        """
-        Obtiene el tier completo del miembro (incluyendo estrellas si las tiene).
-        Devuelve None si no tiene Tier.
-        """
         role_ids = {role.id for role in member.roles}
         base_tier = None
         for tier in tier_order:
@@ -520,7 +516,7 @@ async def tierlist(interaction: discord.Interaction):
         else:
             return base_tier
 
-    def get_member_rank(member: discord.Member) -> str | None:   # Obtiene el rango principal del miembro según group_ranks_order.
+    def get_member_rank(member: discord.Member) -> str | None:
         member_role_names = {role.name for role in member.roles}
         for rank in group_ranks_order:
             if rank in member_role_names:
@@ -539,9 +535,6 @@ async def tierlist(interaction: discord.Interaction):
         return
 
     def parse_tier_components(tier_name: str):
-        """
-        Devuelve una tupla con: (índice base, estrellas) para ordenar correctamente.
-        """
         stars = 0
         if "[ ⁂ ]" in tier_name:
             stars = 3
@@ -550,12 +543,11 @@ async def tierlist(interaction: discord.Interaction):
 
         base = tier_name.split(" [")[0].strip()
         base_index = tier_order.index(base) if base in tier_order else len(tier_order)
-        return (base_index, -stars)  # Más estrellas = mejor
+        return (base_index, -stars)
 
     def rank_index(rank_name: str) -> int:
         return group_ranks_order.index(rank_name) if rank_name in group_ranks_order else len(group_ranks_order)
 
-    # Ordenar: primero Tier base, luego estrellas (más estrellas mejor), luego rango (más alto mejor)
     members_with_tier.sort(key=lambda x: (
         parse_tier_components(x[1]),
         rank_index(x[2])
@@ -563,12 +555,15 @@ async def tierlist(interaction: discord.Interaction):
 
     top_members = members_with_tier[:25]
 
+    # Determinar el ancho máximo para los nombres
+    max_name_len = max(len(m.display_name) for m, _, _ in top_members) if top_members else 20
+
     lines = []
     for i, (member, tier, _) in enumerate(top_members, start=1):
         base_tier = tier.split(" [")[0].strip()
         emoji = tier_emojis.get(base_tier, "")
-        name = member.display_name.ljust(20)
-        lines.append(f"{i:>2}. {emoji} {name} {tier}")
+        name = member.display_name.ljust(max_name_len)
+        lines.append(f"{i:>2}. {emoji} {name} — {tier}")
 
     invoker_pos = None
     invoker_id = interaction.user.id
@@ -582,7 +577,7 @@ async def tierlist(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🏆 Tier Leaderboard",
         description="\n".join(lines),
-        color=discord.Color.from_rgb(255, 255, 255)  # Blanco puro
+        color=discord.Color.from_rgb(255, 255, 255)
     )
     embed.set_footer(text=footer_text)
 
