@@ -285,7 +285,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
                 break
 
     if level_tier:
-        base_tier = level_tier.split(" [")[0]  # Extrae solo el nombre base del Tier
+        base_tier = level_tier.split(" [")[0].strip()
         emoji = tier_emojis.get(base_tier, "")
         embed.add_field(name="**Level-Tier**", value=f"{emoji} {level_tier}", inline=False)
 
