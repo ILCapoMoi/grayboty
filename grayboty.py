@@ -313,18 +313,18 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
-# ───────────── PRE /addtp ─────────────
-LOG_CHANNEL_ID = 1398432802281750639  # Canal oculto para logs
+# ───────────── /LOGS ─────────────
+LOG_CHANNEL_ID = 1398432802281750639  # Hidden channel for logs
 
 async def log_command_use(interaction: discord.Interaction):
-    # Construir el string con el comando y sus argumentos exactos
+    # Build a string with the exact command and its arguments
     params = []
     if interaction.data.get("options"):
         for option in interaction.data["options"]:
             name = option.get("name")
             value = option.get("value")
             params.append(f"{name}: {value}")
-    params_text = "\n".join(params) if params else "*Sin argumentos*"
+    params_text = "\n".join(params) if params else "*No arguments*"
 
     embed = discord.Embed(
         title="📜 Command Log",
@@ -404,9 +404,16 @@ async def addmp(
     missionpoints: app_commands.Range[int, 1],
     rollcall: str,
 ):
+    await log_command_use(interaction)  # <<== llamada al log
+
     caller = cast(discord.Member, interaction.user)
     if not has_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
+        return
+
+    # Validar que missionpoints no supere 4
+    if missionpoints > 4:
+        await interaction.response.send_message("❌ You cannot add more than 4 Mission Points with this command.", ephemeral=True)
         return
 
     await interaction.response.defer()
@@ -440,6 +447,8 @@ async def addtier(
     level: discord.Role,
     stars: app_commands.Range[int, 2, 3] | None = None,
 ):
+    await log_command_use(interaction)  # <<== llamada al log
+
     caller = cast(discord.Member, interaction.user)
     if not has_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
@@ -506,7 +515,7 @@ async def addtier(
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
-
+# ───────────── /tierlist ─────────────
 @bot.tree.command(name="tierlist", description="Show top 25 members sorted by Tier and group rank")
 async def tierlist(interaction: discord.Interaction):
     await interaction.response.defer()
@@ -620,6 +629,8 @@ async def tierlist(interaction: discord.Interaction):
 )
 @app_commands.checks.has_permissions(administrator=True)
 async def deltp(interaction: discord.Interaction, members: str, points: app_commands.Range[int, 1]):
+    await log_command_use(interaction)  # <<== llamada al log
+
     await interaction.response.defer()
     guild = interaction.guild
 
@@ -661,6 +672,8 @@ async def deltp(interaction: discord.Interaction, members: str, points: app_comm
 )
 @app_commands.checks.has_permissions(administrator=True)
 async def delmp(interaction: discord.Interaction, members: str, points: app_commands.Range[int, 1]):
+    await log_command_use(interaction)  # <<== llamada al log
+
     await interaction.response.defer()
     guild = interaction.guild
 
@@ -694,6 +707,7 @@ async def delmp(interaction: discord.Interaction, members: str, points: app_comm
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
+
 # ───────────── /addall ─────────────
 @bot.tree.command(name="addall", description="Add TP and/or MP to one member (Admin only)")
 @app_commands.describe(
@@ -708,6 +722,8 @@ async def addall(
     tp: app_commands.Range[int, 0] = 0,
     mp: app_commands.Range[int, 0] = 0,
 ):
+    await log_command_use(interaction)  # <<== llamada al log
+
     if tp == 0 and mp == 0:
         await interaction.response.send_message("❌ You must specify at least TP or MP points to add.", ephemeral=True)
         return
@@ -734,6 +750,7 @@ async def addall(
     await asyncio.sleep(15)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
+
 
 # ───────────── Autorización fija (roles permitidos para añadir puntos) ─────────────
 
