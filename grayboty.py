@@ -313,6 +313,30 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
+# ───────────── PRE /addtp ─────────────
+LOG_CHANNEL_ID = 1398432802281750639  # Canal oculto para logs
+
+async def log_command_use(interaction: discord.Interaction):
+    # Construir el string con el comando y sus argumentos exactos
+    params = []
+    if interaction.data.get("options"):
+        for option in interaction.data["options"]:
+            name = option.get("name")
+            value = option.get("value")
+            params.append(f"{name}: {value}")
+    params_text = "\n".join(params) if params else "*Sin argumentos*"
+
+    embed = discord.Embed(
+        title="📜 Command Log",
+        description=f"{interaction.user.mention} has executed the command **/{interaction.command.name}**:\n{params_text}",
+        color=0x999999,
+        timestamp=discord.utils.utcnow()
+    )
+    embed.set_footer(text=f"User ID: {interaction.user.id}")
+
+    log_channel = interaction.client.get_channel(LOG_CHANNEL_ID)
+    if log_channel:
+        await log_channel.send(embed=embed)
 
 # ───────────── /addtp ─────────────
 @bot.tree.command(name="addtp", description="Add Training Points with automatic weighting")
@@ -329,6 +353,8 @@ async def addtp(
     mvp: str = "",
     attended: str = "",
 ):
+    await log_command_use(interaction)  # <<== Aquí está la llamada al log
+
     caller = cast(discord.Member, interaction.user)
 
     if not has_permission(caller):
@@ -363,6 +389,7 @@ async def addtp(
     await asyncio.sleep(15)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
+
 
 # ───────────── /addmp ─────────────
 @bot.tree.command(name="addmp", description="Add Mission Points to a member")
