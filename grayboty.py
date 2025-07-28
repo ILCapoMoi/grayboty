@@ -120,8 +120,28 @@ intents.members = True
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-def has_permission(member: discord.Member) -> bool:
-    return any(r.id in allowed_roles(member.guild.id) for r in member.roles)
+@bot.event
+async def on_error(event, *args, **kwargs):
+    import traceback
+    print(f"[GLOBAL ERROR] in event: {event}")
+    traceback.print_exc()
+
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    print(f"[COMMAND ERROR] {interaction.command.name if interaction.command else 'Unknown'}: {error}")
+    with contextlib.suppress(Exception):
+        await interaction.followup.send("⚠️ An error occurred while executing the command.", ephemeral=True)
+
+@bot.event
+async def on_ready():
+    print(f"🤖 Bot started as {bot.user} (ID: {bot.user.id}) — connected successfully.")
+    try:
+        synced = await bot.tree.sync()
+        print(f"☑️ Synced {len(synced)} slash commands.")
+    except Exception as e:
+        print(f"❌ Slash command sync error: {e}")
+
+    threading.Thread(target=monitor_bot, daemon=True).start()
 
 # ───────────── RANK SYSTEM ─────────────
 rank_list = [
@@ -353,13 +373,13 @@ async def addtp(
     mvp: str = "",
     attended: str = "",
 ):
-    await log_command_use(interaction)  # <<== Aquí está la llamada al log
-
     caller = cast(discord.Member, interaction.user)
 
     if not has_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
+
+    await log_command_use(interaction)  # <<== Aquí está la llamada al log
 
     await interaction.response.defer()
     guild = interaction.guild
@@ -404,8 +424,6 @@ async def addmp(
     missionpoints: app_commands.Range[int, 1],
     rollcall: str,
 ):
-    await log_command_use(interaction)  # <<== llamada al log
-
     caller = cast(discord.Member, interaction.user)
     if not has_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
@@ -415,7 +433,7 @@ async def addmp(
     if missionpoints > 4:
         await interaction.response.send_message("❌ You cannot add more than 4 Mission Points with this command.", ephemeral=True)
         return
-
+    await log_command_use(interaction)  # <<== llamada al log
     await interaction.response.defer()
 
     # Solo añadir puntos si missionpoints es mayor que 0 (por seguridad)
@@ -447,13 +465,12 @@ async def addtier(
     level: discord.Role,
     stars: app_commands.Range[int, 2, 3] | None = None,
 ):
-    await log_command_use(interaction)  # <<== llamada al log
 
     caller = cast(discord.Member, interaction.user)
     if not has_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
-
+    await log_command_use(interaction)  # <<== llamada al log
     await interaction.response.defer()
 
     level_name = level.name
@@ -629,7 +646,6 @@ async def tierlist(interaction: discord.Interaction):
 )
 @app_commands.checks.has_permissions(administrator=True)
 async def deltp(interaction: discord.Interaction, members: str, points: app_commands.Range[int, 1]):
-    await log_command_use(interaction)  # <<== llamada al log
 
     await interaction.response.defer()
     guild = interaction.guild
@@ -640,6 +656,8 @@ async def deltp(interaction: discord.Interaction, members: str, points: app_comm
         return
 
     summary = []
+    found_any = False  # Indicador para saber si al menos un miembro válido fue afectado
+
     for mid in member_ids:
         member = guild.get_member(int(mid))
         if not member:
@@ -651,8 +669,12 @@ async def deltp(interaction: discord.Interaction, members: str, points: app_comm
         if remove_amt > 0:
             new_tp = add_points(guild.id, member.id, "tp", -remove_amt)
             summary.append(f"{member.mention} -{remove_amt} TP → **{new_tp}**")
+            found_any = True
         else:
             summary.append(f"{member.mention} has no TP to remove.")
+
+    if found_any:
+        await log_command_use(interaction)  # <<== Log solo si se eliminó algún punto
 
     embed = discord.Embed(
         title="⚠️ Training Points Removed",
@@ -663,6 +685,7 @@ async def deltp(interaction: discord.Interaction, members: str, points: app_comm
     await asyncio.sleep(15)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
+
        
 # ───────────── /delmp ─────────────
 @bot.tree.command(name="delmp", description="Remove Mission Points from one or more members (Admin only)")
@@ -672,7 +695,6 @@ async def deltp(interaction: discord.Interaction, members: str, points: app_comm
 )
 @app_commands.checks.has_permissions(administrator=True)
 async def delmp(interaction: discord.Interaction, members: str, points: app_commands.Range[int, 1]):
-    await log_command_use(interaction)  # <<== llamada al log
 
     await interaction.response.defer()
     guild = interaction.guild
@@ -683,6 +705,8 @@ async def delmp(interaction: discord.Interaction, members: str, points: app_comm
         return
 
     summary = []
+    found_any = False
+
     for mid in member_ids:
         member = guild.get_member(int(mid))
         if not member:
@@ -694,8 +718,12 @@ async def delmp(interaction: discord.Interaction, members: str, points: app_comm
         if remove_amt > 0:
             new_mp = add_points(guild.id, member.id, "mp", -remove_amt)
             summary.append(f"{member.mention} -{remove_amt} MP → **{new_mp}**")
+            found_any = True
         else:
             summary.append(f"{member.mention} has no MP to remove.")
+
+    if found_any:
+        await log_command_use(interaction)
 
     embed = discord.Embed(
         title="⚠️ Mission Points Removed",
@@ -722,8 +750,6 @@ async def addall(
     tp: app_commands.Range[int, 0] = 0,
     mp: app_commands.Range[int, 0] = 0,
 ):
-    await log_command_use(interaction)  # <<== llamada al log
-
     if tp == 0 and mp == 0:
         await interaction.response.send_message("❌ You must specify at least TP or MP points to add.", ephemeral=True)
         return
@@ -740,6 +766,8 @@ async def addall(
     if mp > 0:
         new_mp = add_points(guild_id, member.id, "mp", mp)
         results.append(f"✅ {member.mention} +{mp} MP → **{new_mp}**")
+
+    await log_command_use(interaction)
 
     embed = discord.Embed(
         title="✅ Points Added",
@@ -807,6 +835,13 @@ def monitor_bot():
             if mem_mb >= 490:
                 print(f"⚠️ High memory usage detected: {mem_mb:.2f} MB. Restarting…")
                 os._exit(1)
+            
+            latency_ms = bot.latency * 1000  # convertir a milisegundos
+            print(f"🌐 WebSocket latency: {latency_ms:.0f} ms")
+            if latency_ms > 1000:  # umbral de 1 segundo
+                print(f"⚠️ High latency detected: {latency_ms:.0f} ms. Restarting…")
+                os._exit(1)
+
             if bot.is_closed() or not bot.is_ready():
                 print("❌ Bot not ready. Restarting…")
                 os._exit(1)
@@ -815,6 +850,19 @@ def monitor_bot():
         except Exception as e:
             print(f"❌ Error in monitor_bot: {e}")
             time.sleep(10)  # Wait a bit before continuing
+
+# ───────────── Error Handler ─────────────
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message("❌ You lack permission to do that.", ephemeral=True)
+    elif isinstance(error, app_commands.CommandOnCooldown):
+        await interaction.response.send_message("⏳ This command is on cooldown. Try again later.", ephemeral=True)
+    elif isinstance(error, app_commands.CheckFailure):
+        await interaction.response.send_message("❌ You don't meet the command requirements.", ephemeral=True)
+    else:
+        await interaction.response.send_message("⚠️ An unexpected error occurred.", ephemeral=True)
+        raise error
 
 # ───────────── Run bot ─────────────
 TOKEN = os.getenv("DISCORD_TOKEN")
