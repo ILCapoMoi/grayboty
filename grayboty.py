@@ -338,13 +338,27 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
 LOG_CHANNEL_ID = 1398432802281750639  # Hidden channel for logs
 
 async def log_command_use(interaction: discord.Interaction):
-    # Build a string with the exact command and its arguments
     params = []
+
     if interaction.data.get("options"):
         for option in interaction.data["options"]:
             name = option.get("name")
             value = option.get("value")
-            params.append(f"{name}: {value}")
+
+            try:
+                if name == "member":
+                    user = await interaction.guild.fetch_member(int(value))
+                    display_value = f"{user.mention} ({user})"
+                elif name == "level":
+                    role = interaction.guild.get_role(int(value))
+                    display_value = role.mention if role else f"ID:{value}"
+                else:
+                    display_value = str(value)
+            except Exception:
+                display_value = f"ID:{value}"
+
+            params.append(f"{name}: {display_value}")
+
     params_text = "\n".join(params) if params else "*No arguments*"
 
     embed = discord.Embed(
@@ -360,8 +374,7 @@ async def log_command_use(interaction: discord.Interaction):
         try:
             await log_channel.send(embed=embed)
         except Exception:
-            # Silenciar cualquier error al enviar logs
-            pass
+            pass  # Silenciar cualquier error al enviar logs
 
 # ───────────── /addtp ─────────────
 @bot.tree.command(name="addtp", description="Add Training Points with automatic weighting")
