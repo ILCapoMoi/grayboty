@@ -40,6 +40,7 @@ Requirements
 # ─────────────── Imports ───────────────
 import os
 import re
+import sys
 import time
 import threading
 import contextlib
@@ -356,7 +357,11 @@ async def log_command_use(interaction: discord.Interaction):
 
     log_channel = interaction.client.get_channel(LOG_CHANNEL_ID)
     if log_channel:
-        await log_channel.send(embed=embed)
+        try:
+            await log_channel.send(embed=embed)
+        except Exception:
+            # Silenciar cualquier error al enviar logs
+            pass
 
 # ───────────── /addtp ─────────────
 @bot.tree.command(name="addtp", description="Add Training Points with automatic weighting")
@@ -834,17 +839,17 @@ def monitor_bot():
             print(f"📦 Memory usage: {mem_mb:.2f} MB")
             if mem_mb >= 490:
                 print(f"⚠️ High memory usage detected: {mem_mb:.2f} MB. Restarting…")
-                os._exit(1)
+                sys.exit(1)
             
             latency_ms = bot.latency * 1000  # convertir a milisegundos
             print(f"🌐 WebSocket latency: {latency_ms:.0f} ms")
             if latency_ms > 1000:  # umbral de 1 segundo
                 print(f"⚠️ High latency detected: {latency_ms:.0f} ms. Restarting…")
-                os._exit(1)
+                sys.exit(1)
 
             if bot.is_closed() or not bot.is_ready():
                 print("❌ Bot not ready. Restarting…")
-                os._exit(1)
+                sys.exit(1)
             print("✅ Bot check passed.", flush=True)
             time.sleep(600)  # Wait between checks (10 min)
         except Exception as e:
@@ -875,4 +880,4 @@ except Exception as e:
     print(f"Fatal error running bot: {e}")
     import traceback
     traceback.print_exc()
-    os._exit(1)
+    sys.exit(1)
