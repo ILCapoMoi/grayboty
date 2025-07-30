@@ -266,10 +266,10 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     embed.set_thumbnail(url=member.display_avatar.url)
 
     embed.add_field(name="**Training Points**", value=doc.get("tp", 0), inline=True)
-    embed.add_field(name="**Mission Points**", value=doc.get("mp", 0), inline=True)
+    embed.add_field(name="**Mission Points**", value=doc.get("mp", 0), inline=False)
 
-    embed.add_field(name="**War Points**", value=doc.get("wp", 0), inline=False)
-    embed.add_field(name="**Raid Points**", value=doc.get("rp", 0), inline=False)
+    embed.add_field(name="**War Points**", value=doc.get("wp", 0), inline=True)
+    embed.add_field(name="**Raid Points**", value=doc.get("rp", 0), inline=True)
 
 
     embed.add_field(
