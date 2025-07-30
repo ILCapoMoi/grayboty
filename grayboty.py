@@ -237,7 +237,7 @@ group_ranks_order = [
     "Initiate",
 ]
 
-# ─────────── /showprofile ───────────
+# ───────────── /showprofile ─────────────
 @bot.tree.command(name="showprofile", description="Show Training & Mission Points")
 @app_commands.describe(member="Member to view; leave empty for yourself")
 async def showprofile(interaction: discord.Interaction, member: discord.Member | None = None):
@@ -252,7 +252,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
 
     doc = points_collection.find_one({"guild_id": interaction.guild.id, "user_id": member.id})
 
-    if not doc or (doc.get("tp", 0) == 0 and doc.get("mp", 0) == 0):
+    if not doc or (doc.get("tp", 0) == 0 and doc.get("mp", 0) == 0 and doc.get("rp", 0) == 0 and doc.get("wp", 0) == 0):
         msg = await interaction.followup.send(f"_**{member.display_name}** does not have any points to show their profile yet._")
         await asyncio.sleep(15)
         with contextlib.suppress((discord.Forbidden, discord.NotFound)):
@@ -267,6 +267,10 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
 
     embed.add_field(name="**Training Points**", value=doc.get("tp", 0), inline=True)
     embed.add_field(name="**Mission Points**", value=doc.get("mp", 0), inline=True)
+    embed.add_field(name="**Raid Points**", value=doc.get("rp", 0), inline=True)
+    embed.add_field(name="**War Points**", value=doc.get("wp", 0), inline=True)
+
+    embed.add_field(name="", value="-# War points serve as training points", inline=False)
 
     embed.add_field(
         name="",
@@ -330,9 +334,10 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     embed.add_field(name="\u200b", value="-# <:OficialTGO:1395904116072648764> The Gray Order", inline=False)
     msg = await interaction.followup.send(embed=embed)
 
-    await asyncio.sleep(25)
+    await asyncio.sleep(30)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
+
 
 # ───────────── /LOGS ─────────────
 LOG_CHANNEL_ID = 1398432802281750639  # Hidden channel for logs
@@ -470,6 +475,115 @@ async def addmp(
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
        
+# ───────────── /addra ─────────────
+@bot.tree.command(name="addra", description="Add Raid Points (Rp) and Mission Points (Mp)")
+@app_commands.describe(
+    members="Members to receive Raid Points and +2 Mission Points",
+    rollcall="Roll‑call message link",
+    extra="Extra members to receive +1 Mission Point (optional)",
+)
+async def addra(
+    interaction: discord.Interaction,
+    members: str,
+    rollcall: str,
+    extra: str | None = None,
+):
+    caller = cast(discord.Member, interaction.user)
+    if not has_permission(caller):
+        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
+        return
+
+    member_ids = MENTION_RE.findall(members)
+    if not member_ids:
+        await interaction.response.send_message("❌ No valid member mentions found in members.", ephemeral=True)
+        return
+
+    extra_ids = MENTION_RE.findall(extra) if extra else []
+
+    await log_command_use(interaction)
+    await interaction.response.defer()
+
+    guild = interaction.guild
+    summary = []
+
+    # Añadir Rp +1 y Mp +2 a members
+    for mid in member_ids:
+        member = guild.get_member(int(mid))
+        if member:
+            total_rp = add_points(guild.id, member.id, "rp", 1)
+            total_mp = add_points(guild.id, member.id, "mp", 2)
+            summary.append(f"{member.mention} +1 Rp, +2 Mp → Rp **{total_rp}**, Mp **{total_mp}**")
+        else:
+            summary.append(f"User ID {mid} not found in guild.")
+
+    # Añadir Mp +1 a extra (si hay)
+    if extra_ids:
+        for eid in extra_ids:
+            extra_member = guild.get_member(int(eid))
+            if extra_member:
+                total_mp = add_points(guild.id, extra_member.id, "mp", 1)
+                summary.append(f"{extra_member.mention} +1 Mp (extra) → **{total_mp}**")
+            else:
+                summary.append(f"User ID {eid} not found in guild.")
+
+    embed = discord.Embed(
+        title="✅ Raid & Mission Points Added",
+        description="\n".join(summary) + (f"\n🔗 {rollcall}" if rollcall else ""),
+        color=discord.Color.dark_gold()
+    )
+    msg = await interaction.followup.send(embed=embed)
+    await asyncio.sleep(15)
+    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
+        await msg.delete()
+
+
+# ───────────── /addwar ─────────────
+@bot.tree.command(name="addwar", description="Add War Points (Wp) to multiple members")
+@app_commands.describe(
+    members="Members to receive War Points",
+    rollcall="Roll‑call message link",
+)
+async def addwar(
+    interaction: discord.Interaction,
+    members: str,
+    rollcall: str,
+):
+    caller = cast(discord.Member, interaction.user)
+    if not has_permission(caller):
+        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
+        return
+
+    # Extraer IDs de miembros mencionados en 'members'
+    member_ids = MENTION_RE.findall(members)
+    if not member_ids:
+        await interaction.response.send_message("❌ No valid member mentions found in members.", ephemeral=True)
+        return
+
+    await log_command_use(interaction)
+    await interaction.response.defer()
+
+    guild = interaction.guild
+    summary = []
+
+    for mid in member_ids:
+        member = guild.get_member(int(mid))
+        if member:
+            total = add_points(guild.id, member.id, "wp", 1)
+            summary.append(f"{member.mention} +1 Wp → **{total}**")
+        else:
+            summary.append(f"User ID {mid} not found in guild.")
+
+    embed = discord.Embed(
+        title="✅ War Points Added",
+        description="\n".join(summary) + (f"\n🔗 {rollcall}" if rollcall else ""),
+        color=discord.Color.purple()
+    )
+    msg = await interaction.followup.send(embed=embed)
+    await asyncio.sleep(15)
+    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
+        await msg.delete()
+
+
 # ───────────── /addtier ─────────────
 @bot.tree.command(name="addtier", description="Set or update a member's tier level")
 @app_commands.describe(
@@ -842,32 +956,33 @@ threading.Thread(target=run_flask, daemon=True).start()
 
 # ─────── Monitor Bot (check RAM & conexión) ────────
 def monitor_bot():
-    print("⏳ Waiting 5 minutes before starting monitoring…")
-    time.sleep(300)  # Wait 5 minutes
+    print("⏳ Waiting 5 minutes before starting monitoring…", flush=True)
+    time.sleep(300)  # Espera inicial 5 minutos
     process = psutil.Process(os.getpid())
-    print("🛡️ RAM and connection monitor started.")
+    print("🛡️ RAM and connection monitor started.", flush=True)
     while True:
         try:
             mem_mb = process.memory_info().rss / (1024 * 1024)
-            print(f"📦 Memory usage: {mem_mb:.2f} MB")
+            print(f"📦 Memory usage: {mem_mb:.2f} MB", flush=True)
             if mem_mb >= 490:
-                print(f"⚠️ High memory usage detected: {mem_mb:.2f} MB. Restarting…")
+                print(f"⚠️ High memory usage detected: {mem_mb:.2f} MB. Restarting…", flush=True)
                 sys.exit(1)
-            
-            latency_ms = bot.latency * 1000  # convertir a milisegundos
-            print(f"🌐 WebSocket latency: {latency_ms:.0f} ms")
-            if latency_ms > 1000:  # umbral de 1 segundo
-                print(f"⚠️ High latency detected: {latency_ms:.0f} ms. Restarting…")
+
+            latency_ms = bot.latency * 1000
+            print(f"🌐 WebSocket latency: {latency_ms:.0f} ms", flush=True)
+            if latency_ms > 1000:
+                print(f"⚠️ High latency detected: {latency_ms:.0f} ms. Restarting…", flush=True)
                 sys.exit(1)
 
             if bot.is_closed() or not bot.is_ready():
-                print("❌ Bot not ready. Restarting…")
+                print("❌ Bot not ready. Restarting…", flush=True)
                 sys.exit(1)
+
             print("✅ Bot check passed.", flush=True)
-            time.sleep(600)  # Wait between checks (10 min)
+            time.sleep(600)  # Duerme 10 minutos antes del siguiente chequeo
         except Exception as e:
-            print(f"❌ Error in monitor_bot: {e}")
-            time.sleep(10)  # Wait a bit before continuing
+            print(f"❌ Error in monitor_bot: {e}", flush=True)
+            time.sleep(10)
 
 # ───────────── Error Handler ─────────────
 @bot.tree.error
