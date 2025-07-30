@@ -270,6 +270,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     embed.add_field(name="\u200b", value="\u200b", inline=True)
     embed.add_field(name="**War Points**", value=doc.get("wp", 0), inline=True)
     embed.add_field(name="**Raid Points**", value=doc.get("rp", 0), inline=True)
+    embed.add_field(name="\u200b", value="\u200b", inline=True)
 
 
     embed.add_field(
