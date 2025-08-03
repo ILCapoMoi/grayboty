@@ -56,7 +56,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from flask import Flask
+from flask import Flask, request
 from waitress import serve
 
 from pymongo import ReturnDocument
@@ -982,6 +982,7 @@ app = Flask(__name__)
 
 @app.route("/", methods=["GET", "HEAD"])
 def home():
+    print(f"📡 Ping received by method {request.method} — server active", flush=True)
     return "Bot is running!", 200
 
 def run_flask():
@@ -1045,3 +1046,4 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
