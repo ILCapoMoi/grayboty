@@ -38,6 +38,9 @@ Requirements
 -----------------------------------------------------
 """
 # ─────────────── Imports ───────────────
+import faulthandler
+faulthandler.enable()
+
 import asyncio
 import contextlib
 import os
@@ -1082,6 +1085,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
