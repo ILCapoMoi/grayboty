@@ -346,7 +346,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     embed.add_field(name="\u200b", value="-# <:OficialTGO:1395904116072648764> The Gray Order", inline=False)
     msg = await interaction.followup.send(embed=embed)
 
-    await asyncio.sleep(30)
+    await asyncio.sleep(40)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
@@ -414,12 +414,17 @@ async def addtp(
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
 
-    await log_command_use(interaction)  # <<== Aquí está la llamada al log
+    await log_command_use(interaction)
 
     await interaction.response.defer()
     guild = interaction.guild
 
     summary = []
+
+    # Añadir +1 TP al ejecutor si tiene permiso
+    add_points(guild.id, caller.id, "tp", 1)
+    summary.append(f"{caller.mention} +1 TP _(command issuer reward)_")
+
     for cat, text in {"mvp": mvp, "promo": promo, "attended": attended}.items():
         pts_to_add = POINT_VALUES.get(cat, 0)
         if pts_to_add <= 0:
@@ -1055,5 +1060,6 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
