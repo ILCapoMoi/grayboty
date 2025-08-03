@@ -315,7 +315,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
 
     # Requisitos o texto especial
     if is_retired:
-        embed.add_field(name="", value="The legends will always be remembered", inline=False)
+        embed.add_field(name="", value="**_The legends will always be remembered_**", inline=False)
     else:
         next_rank = None
         if current_rank in rank_list:
@@ -1060,6 +1060,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
