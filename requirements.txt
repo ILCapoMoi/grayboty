@@ -4,5 +4,5 @@ Flask==3.1.1
 gunicorn
 python-dotenv
 aiohttp
-psutil
+psutil>=5.9.5
 waitress
