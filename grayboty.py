@@ -502,6 +502,7 @@ async def addmp(
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
        
+
 # ───────────── /addra ─────────────
 @bot.tree.command(name="addra", description="Add Raid Points (Rp) and Mission Points (Mp)")
 @app_commands.describe(
@@ -519,10 +520,17 @@ async def addra(
     if not has_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
+
+    # Validar link rollcall
+    if rollcall and not re.fullmatch(r"https://discord\.com/channels/\d+/\d+", rollcall.strip()):
+        await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
+        return
+
     member_ids = MENTION_RE.findall(members)
     if not member_ids:
         await interaction.response.send_message("❌ No valid member mentions found in members.", ephemeral=True)
         return
+
     extra_ids = MENTION_RE.findall(extra) if extra else []
 
     await log_command_use(interaction)
@@ -530,6 +538,7 @@ async def addra(
 
     guild = interaction.guild
     summary = []
+
     # Añadir Rp +1 y Mp +2 a members
     for mid in member_ids:
         member = guild.get_member(int(mid))
@@ -539,6 +548,7 @@ async def addra(
             summary.append(f"{member.mention} +1 Rp, +2 Mp → Rp **{total_rp}**, Mp **{total_mp}**")
         else:
             summary.append(f"User ID {mid} not found in guild.")
+
     # Añadir Mp +1 a extra (si hay)
     if extra_ids:
         for eid in extra_ids:
@@ -560,6 +570,7 @@ async def addra(
         await msg.delete()
 
 
+
 # ───────────── /addwar ─────────────
 @bot.tree.command(name="addwar", description="Add War Points (Wp) to multiple members")
 @app_commands.describe(
@@ -575,6 +586,12 @@ async def addwar(
     if not has_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
+
+    # Validar link rollcall
+    if rollcall and not re.fullmatch(r"https://discord\.com/channels/\d+/\d+", rollcall.strip()):
+        await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
+        return
+
     # Extraer IDs de miembros mencionados en 'members'
     member_ids = MENTION_RE.findall(members)
     if not member_ids:
@@ -1065,6 +1082,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
