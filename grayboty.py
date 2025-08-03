@@ -65,6 +65,7 @@ from waitress import serve
 from pymongo import ReturnDocument
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
+
 # ───────────── MongoDB setup ─────────────
 MONGO_URI = os.getenv("MONGO_URI")
 if not MONGO_URI:
@@ -74,47 +75,60 @@ client = MongoClient(MONGO_URI, server_api=ServerApi("1"))
 db = client.grayboty_db
 points_collection = db.points
 config_collection = db.config
-
 def print_db_sizes() -> None:
-    dbs = client.list_databases()
-    print("\n======= DATABASE SIZES =======")
-    for info in dbs:
-        mb = round(info["sizeOnDisk"] / (1024 * 1024), 2)
-        print(f"{info['name']}: {mb} MB")
-    print("==============================\n")
-
+    try:
+        dbs = client.list_databases()
+        print("\n======= DATABASE SIZES =======")
+        for info in dbs:
+            mb = round(info["sizeOnDisk"] / (1024 * 1024), 2)
+            print(f"{info['name']}: {mb} MB")
+        print("==============================\n")
+    except Exception as e:
+        print(f"Error listing databases: {e}", flush=True)
 print_db_sizes() # Mostrar el uso de espacio siempre al iniciar
-
 try:
     client.admin.command("ping")
     print("Pinged your deployment. Connected to MongoDB!")
 except Exception as e:
-    print("Error connecting to MongoDB:", e)
+    print("Error connecting to MongoDB:", e, flush=True)
 
 # ───────────── Utilidades MongoDB ─────────────
 def get_user_data(gid: int, uid: int) -> dict | None:
-    doc = points_collection.find_one({"guild_id": gid, "user_id": uid})
-    return doc
-
+    try:
+        doc = points_collection.find_one({"guild_id": gid, "user_id": uid})
+        return doc
+    except Exception as e:
+        print(f"MongoDB get_user_data error: {e}", flush=True)
+        return None
 def add_points(gid, uid, field, amount):
-    doc = points_collection.find_one_and_update(
-        {"guild_id": gid, "user_id": uid},
-        {"$inc": {field: amount}},
-        upsert=True,
-        return_document=ReturnDocument.AFTER,
-    )
-    return doc[field]
+    try:
+        doc = points_collection.find_one_and_update(
+            {"guild_id": gid, "user_id": uid},
+            {"$inc": {field: amount}},
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
+        return doc[field]
+    except Exception as e:
+        print(f"MongoDB add_points error: {e}", flush=True)
+        return None
+def allowed_roles(gid: int) -> list[int]:
+    try:
+        doc = config_collection.find_one({"guild_id": gid}) or {}
+        return doc.get("role_ids", [])
+    except Exception as e:
+        print(f"MongoDB allowed_roles error: {e}", flush=True)
+        return []
+def save_allowed_roles(gid: int, role_ids: list[int]) -> None:
+    try:
+        config_collection.update_one(
+            {"guild_id": gid},
+            {"$set": {"role_ids": role_ids}},
+            upsert=True,
+        )
+    except Exception as e:
+        print(f"MongoDB save_allowed_roles error: {e}", flush=True)
 
-def allowed_roles(gid: int) -> List[int]:
-    doc = config_collection.find_one({"guild_id": gid}) or {}
-    return doc.get("role_ids", [])
-
-def save_allowed_roles(gid: int, role_ids: List[int]) -> None:
-    config_collection.update_one(
-        {"guild_id": gid},
-        {"$set": {"role_ids": role_ids}},
-        upsert=True,
-    )
 
 # ───────────── Constantes ─────────────
 MENTION_RE = re.compile(r"<@!?(\d+)>")
@@ -1085,11 +1099,3 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
-
-
-
-
-
-
-
-
