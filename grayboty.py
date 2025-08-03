@@ -711,6 +711,14 @@ class TierListView(discord.ui.View):
             await self.update()
         await interaction.response.defer()
 
+    async def on_timeout(self):
+        if self.message:
+            try:
+                await self.message.delete()
+            except discord.NotFound:
+                pass
+
+
 @bot.tree.command(name="tierlist", description="Show top members sorted by Tier and group rank")
 async def tierlist(interaction: discord.Interaction):
     await interaction.response.defer()
@@ -782,7 +790,6 @@ async def tierlist(interaction: discord.Interaction):
             invoker_pos = i
             break
 
-    # Dividir en páginas de 15 elementos
     lines = []
     max_name_len = max(len(m.display_name) for m, _, _ in members_with_tier)
     for i, (member, tier, _) in enumerate(members_with_tier, start=1):
@@ -1038,4 +1045,3 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
-
