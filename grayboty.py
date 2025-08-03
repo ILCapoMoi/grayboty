@@ -38,16 +38,17 @@ Requirements
 -----------------------------------------------------
 """
 # ─────────────── Imports ───────────────
+import asyncio
+import contextlib
 import os
 import re
 import sys
-import time
 import threading
-import contextlib
-import asyncio
-from typing import List, cast
+import time
 
 from datetime import datetime, timezone
+from typing import List, cast
+
 import aiohttp
 import psutil
 
@@ -56,10 +57,11 @@ from discord import app_commands
 from discord.ext import commands
 
 from flask import Flask
+from waitress import serve
 
+from pymongo import ReturnDocument
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
-from pymongo import ReturnDocument
 # ───────────── MongoDB setup ─────────────
 MONGO_URI = os.getenv("MONGO_URI")
 if not MONGO_URI:
@@ -665,8 +667,51 @@ async def addtier(
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
-# ───────────── /tierlist ─────────────
-@bot.tree.command(name="tierlist", description="Show top 25 members sorted by Tier and group rank")
+# ───────────── /tierlist con paginación ─────────────
+class TierListView(discord.ui.View):
+    def __init__(self, pages: list[list[str]], invoker_pos: int | None):
+        super().__init__(timeout=60)
+        self.pages = pages
+        self.current_page = 0
+        self.invoker_pos = invoker_pos
+        self.message: discord.Message | None = None
+
+    async def send_initial(self, interaction: discord.Interaction):
+        embed = self.create_embed()
+        self.message = await interaction.followup.send(embed=embed, view=self)
+
+    def create_embed(self):
+        embed = discord.Embed(
+            title="🏆 Tier Leaderboard",
+            description="\n".join(self.pages[self.current_page]),
+            color=discord.Color.from_rgb(255, 255, 255)
+        )
+        if self.invoker_pos:
+            embed.set_footer(text=f"Your position is: {self.invoker_pos}")
+        else:
+            embed.set_footer(text="You have no Tier position.")
+        return embed
+
+    async def update(self):
+        if self.message:
+            embed = self.create_embed()
+            await self.message.edit(embed=embed, view=self)
+
+    @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.secondary)
+    async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page > 0:
+            self.current_page -= 1
+            await self.update()
+        await interaction.response.defer()
+
+    @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
+    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page < len(self.pages) - 1:
+            self.current_page += 1
+            await self.update()
+        await interaction.response.defer()
+
+@bot.tree.command(name="tierlist", description="Show top members sorted by Tier and group rank")
 async def tierlist(interaction: discord.Interaction):
     await interaction.response.defer()
 
@@ -674,13 +719,8 @@ async def tierlist(interaction: discord.Interaction):
     members = guild.members
 
     tier_order = [
-        "✩ Legend-Tier",
-        "★ Ashenlight-Tier",
-        "Celestial-Tier",
-        "Elite-Tier",
-        "High-Tier",
-        "Middle-Tier",
-        "Low-Tier"
+        "✩ Legend-Tier", "★ Ashenlight-Tier", "Celestial-Tier", "Elite-Tier",
+        "High-Tier", "Middle-Tier", "Low-Tier"
     ]
 
     def get_member_tier(member: discord.Member) -> str | None:
@@ -692,7 +732,6 @@ async def tierlist(interaction: discord.Interaction):
                 break
         if not base_tier:
             return None
-
         if tier_roles.get("[ ⁂ ]") in role_ids:
             return f"{base_tier} [ ⁂ ]"
         elif tier_roles.get("[ ⁑ ]") in role_ids:
@@ -724,7 +763,6 @@ async def tierlist(interaction: discord.Interaction):
             stars = 3
         elif "[ ⁑ ]" in tier_name:
             stars = 2
-
         base = tier_name.split(" [")[0].strip()
         base_index = tier_order.index(base) if base in tier_order else len(tier_order)
         return (base_index, -stars)
@@ -737,18 +775,6 @@ async def tierlist(interaction: discord.Interaction):
         rank_index(x[2])
     ))
 
-    top_members = members_with_tier[:25]
-
-    max_name_len = max(len(m.display_name) for m, _, _ in top_members) if top_members else 20
-
-    lines = []
-    for i, (member, tier, _) in enumerate(top_members, start=1):
-        base_tier = tier.split(" [")[0].strip()
-        emoji = tier_emojis.get(base_tier, "")
-        name = f"{emoji} {member.display_name}"
-        padded_name = name.ljust(max_name_len + 6)
-        lines.append(f"{i:>2}. {padded_name} — {tier}")
-
     invoker_pos = None
     invoker_id = interaction.user.id
     for i, (member, _, _) in enumerate(members_with_tier, start=1):
@@ -756,19 +782,21 @@ async def tierlist(interaction: discord.Interaction):
             invoker_pos = i
             break
 
-    footer_text = f"Your position is: {invoker_pos}" if invoker_pos else "You have no Tier position."
+    # Dividir en páginas de 15 elementos
+    lines = []
+    max_name_len = max(len(m.display_name) for m, _, _ in members_with_tier)
+    for i, (member, tier, _) in enumerate(members_with_tier, start=1):
+        base_tier = tier.split(" [")[0].strip()
+        emoji = tier_emojis.get(base_tier, "")
+        name = f"{emoji} {member.display_name}"
+        padded_name = name.ljust(max_name_len + 6)
+        lines.append(f"{i:>2}. {padded_name} — {tier}")
 
-    embed = discord.Embed(
-        title="🏆 Tier Leaderboard",
-        description="\n".join(lines),
-        color=discord.Color.from_rgb(255, 255, 255)
-    )
-    embed.set_footer(text=footer_text)
+    per_page = 15
+    pages = [lines[i:i + per_page] for i in range(0, len(lines), per_page)]
 
-    msg = await interaction.followup.send(embed=embed)
-    await asyncio.sleep(60)
-    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
-        await msg.delete()
+    view = TierListView(pages=pages, invoker_pos=invoker_pos)
+    await view.send_initial(interaction)
 
 
 # ───────────── /deltp ─────────────
@@ -951,7 +979,7 @@ def home():
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))  # Toma el puerto asignado o 8080 por defecto
-    app.run(host="0.0.0.0", port=port, debug=False)
+    serve(app, host="0.0.0.0", port=port)  # Producción real
 
 threading.Thread(target=run_flask, daemon=True).start()
 
@@ -1010,3 +1038,4 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
