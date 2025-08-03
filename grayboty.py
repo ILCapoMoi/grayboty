@@ -3,55 +3,50 @@ GrayPointsBot – Discord bot for tracking Training Points (TP) and Mission Poin
 ===================================================================
 Slash commands (all in English)
 ------------------------------
-* `/showprofile [member]` – shows TP & MP. If *member* omitted, shows yourself.
-* `/addtp` – add training points with automatic weighting:
+* /showprofile [member] – shows TP & MP. If *member* omitted, shows yourself.
+* /addtp – add training points with automatic weighting:
     * **mvp**   → each mention +3 TP
     * **promo** → each mention +2 TP
     * **attended** → each mention +1 TP
     * **rollcall** → link for bookkeeping (stored in the confirmation msg only)
-* `/addmp` – add mission points:
+* /addmp – add mission points:
     * **member** → mention (one user)
     * **missionpoints** → integer ≥ 1
     * **rollcall** → link for bookkeeping
-* `/setup` *(admins only)* – manage which roles can use `/addtp` & `/addmp`:
-    * `/setup addrole <role>`
-    * `/setup removerole <role>`
-    * `/setup list`
+* /setup *(admins only)* – manage which roles can use /addtp & /addmp:
+    * /setup addrole <role>
+    * /setup removerole <role>
+    * /setup list
 
 All confirmation messages auto‑delete after 10 s to keep channels tidy.
 
 File structure & persistence
 ---------------------------
-```
 GrayBot/
 ├─ bot_points.py    ← this script
 ├─ points.json      ← {"guild_id": {"user_id": {"tp": int, "mp": int}}}
 ├─ config.json      ← {"guild_id": [role_id, ...]}
 └─ .env             ← DISCORD_TOKEN=xxxxx
-```
+
 
 Requirements
 ------------
 * Python ≥ 3.10
-* `pip install -U "discord.py[voice]>=2.4.0"`
+* pip install -U "discord.py[voice]>=2.4.0"
 
 -----------------------------------------------------
 """
 # ─────────────── Imports ───────────────
-import faulthandler
-faulthandler.enable()
-
-import asyncio
-import contextlib
 import os
 import re
 import sys
-import threading
 import time
-
-from datetime import datetime, timezone
+import threading
+import contextlib
+import asyncio
 from typing import List, cast
 
+from datetime import datetime, timezone
 import aiohttp
 import psutil
 
@@ -59,12 +54,11 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from flask import Flask, request
-from waitress import serve
+from flask import Flask
 
-from pymongo import ReturnDocument
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
+from pymongo import ReturnDocument
 
 # ───────────── MongoDB setup ─────────────
 MONGO_URI = os.getenv("MONGO_URI")
@@ -75,60 +69,47 @@ client = MongoClient(MONGO_URI, server_api=ServerApi("1"))
 db = client.grayboty_db
 points_collection = db.points
 config_collection = db.config
+
 def print_db_sizes() -> None:
-    try:
-        dbs = client.list_databases()
-        print("\n======= DATABASE SIZES =======")
-        for info in dbs:
-            mb = round(info["sizeOnDisk"] / (1024 * 1024), 2)
-            print(f"{info['name']}: {mb} MB")
-        print("==============================\n")
-    except Exception as e:
-        print(f"Error listing databases: {e}", flush=True)
+    dbs = client.list_databases()
+    print("\n======= DATABASE SIZES =======")
+    for info in dbs:
+        mb = round(info["sizeOnDisk"] / (1024 * 1024), 2)
+        print(f"{info['name']}: {mb} MB")
+    print("==============================\n")
+
 print_db_sizes() # Mostrar el uso de espacio siempre al iniciar
+
 try:
     client.admin.command("ping")
     print("Pinged your deployment. Connected to MongoDB!")
 except Exception as e:
-    print("Error connecting to MongoDB:", e, flush=True)
+    print("Error connecting to MongoDB:", e)
 
 # ───────────── Utilidades MongoDB ─────────────
 def get_user_data(gid: int, uid: int) -> dict | None:
-    try:
-        doc = points_collection.find_one({"guild_id": gid, "user_id": uid})
-        return doc
-    except Exception as e:
-        print(f"MongoDB get_user_data error: {e}", flush=True)
-        return None
-def add_points(gid, uid, field, amount):
-    try:
-        doc = points_collection.find_one_and_update(
-            {"guild_id": gid, "user_id": uid},
-            {"$inc": {field: amount}},
-            upsert=True,
-            return_document=ReturnDocument.AFTER,
-        )
-        return doc[field]
-    except Exception as e:
-        print(f"MongoDB add_points error: {e}", flush=True)
-        return None
-def allowed_roles(gid: int) -> list[int]:
-    try:
-        doc = config_collection.find_one({"guild_id": gid}) or {}
-        return doc.get("role_ids", [])
-    except Exception as e:
-        print(f"MongoDB allowed_roles error: {e}", flush=True)
-        return []
-def save_allowed_roles(gid: int, role_ids: list[int]) -> None:
-    try:
-        config_collection.update_one(
-            {"guild_id": gid},
-            {"$set": {"role_ids": role_ids}},
-            upsert=True,
-        )
-    except Exception as e:
-        print(f"MongoDB save_allowed_roles error: {e}", flush=True)
+    doc = points_collection.find_one({"guild_id": gid, "user_id": uid})
+    return doc
 
+def add_points(gid, uid, field, amount):
+    doc = points_collection.find_one_and_update(
+        {"guild_id": gid, "user_id": uid},
+        {"$inc": {field: amount}},
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+    return doc[field]
+
+def allowed_roles(gid: int) -> List[int]:
+    doc = config_collection.find_one({"guild_id": gid}) or {}
+    return doc.get("role_ids", [])
+
+def save_allowed_roles(gid: int, role_ids: List[int]) -> None:
+    config_collection.update_one(
+        {"guild_id": gid},
+        {"$set": {"role_ids": role_ids}},
+        upsert=True,
+    )
 
 # ───────────── Constantes ─────────────
 MENTION_RE = re.compile(r"<@!?(\d+)>")
@@ -1035,12 +1016,11 @@ app = Flask(__name__)
 
 @app.route("/", methods=["GET", "HEAD"])
 def home():
-    print(f"📡 Ping received by method {request.method} — server active", flush=True)
     return "Bot is running!", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))  # Toma el puerto asignado o 8080 por defecto
-    serve(app, host="0.0.0.0", port=port)  # Producción real
+    app.run(host="0.0.0.0", port=port, debug=False)
 
 threading.Thread(target=run_flask, daemon=True).start()
 
