@@ -403,10 +403,11 @@ async def log_command_use(interaction: discord.Interaction):
 )
 async def addtp(
     interaction: discord.Interaction,
-    promo: str,
-    rollcall: str,
     mvp: str = "",
+    promo: str,
     attended: str = "",
+    rollcall: str,
+    
 ):
     caller = cast(discord.Member, interaction.user)
 
@@ -414,8 +415,12 @@ async def addtp(
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
 
-    await log_command_use(interaction)
+    # Validar link de rollcall
+    if rollcall and not re.fullmatch(r"https://discord\.com/channels/\d+/\d+", rollcall.strip()):
+        await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
+        return
 
+    await log_command_use(interaction)
     await interaction.response.defer()
     guild = interaction.guild
 
@@ -425,6 +430,8 @@ async def addtp(
     add_points(guild.id, caller.id, "tp", 1)
     summary.append(f"{caller.mention} +1 TP _(command issuer reward)_")
 
+    any_valid_mentions = False
+
     for cat, text in {"mvp": mvp, "promo": promo, "attended": attended}.items():
         pts_to_add = POINT_VALUES.get(cat, 0)
         if pts_to_add <= 0:
@@ -432,12 +439,13 @@ async def addtp(
 
         for uid in MENTION_RE.findall(text):
             member = guild.get_member(int(uid))
-            if member:
+            if member is not None:
+                any_valid_mentions = True
                 total = add_points(guild.id, member.id, "tp", pts_to_add)
                 summary.append(f"{member.mention} +{pts_to_add} TP → **{total}**")
 
-    if not summary:
-        await interaction.followup.send("ℹ️ No valid mentions found.")
+    if not any_valid_mentions:
+        await interaction.followup.send("ℹ️ No valid member mentions found.")
         return
 
     embed = discord.Embed(
@@ -1060,6 +1068,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
