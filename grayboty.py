@@ -285,7 +285,6 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
 
     for role_id, emoji in medal_roles.items():
         if discord.utils.get(member.roles, id=role_id):
-        else:
             user_medals_full.append(emoji)
         else:
             user_medals_full.append(glory_emoji)
@@ -1086,4 +1085,5 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
