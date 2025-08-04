@@ -410,7 +410,6 @@ async def addtp(
     rollcall: str,
     mvp: str = "",
     attended: str = "",
-    
 ):
     caller = cast(discord.Member, interaction.user)
 
@@ -419,7 +418,7 @@ async def addtp(
         return
 
     # Validar link de rollcall
-    if rollcall and not re.fullmatch(r"https://discord\.com/channels/\d+/\d+", rollcall.strip()):
+    if rollcall and not rollcall.strip().startswith("https://discord.com"):
         await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
 
@@ -484,7 +483,7 @@ async def addmp(
         await interaction.response.send_message("❌ You cannot add more than 4 Mission Points with this command.", ephemeral=True)
         return
     # Validar link rollcall
-    if rollcall and not re.fullmatch(r"https://discord\.com/channels/\d+/\d+", rollcall.strip()):
+    if rollcall and not rollcall.strip().startswith("https://discord.com"):
         await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
     await log_command_use(interaction)  # <<== llamada al log
@@ -525,7 +524,7 @@ async def addra(
         return
 
     # Validar link rollcall
-    if rollcall and not re.fullmatch(r"https://discord\.com/channels/\d+/\d+", rollcall.strip()):
+    if rollcall and not rollcall.strip().startswith("https://discord.com"):
         await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
 
@@ -591,7 +590,7 @@ async def addwar(
         return
 
     # Validar link rollcall
-    if rollcall and not re.fullmatch(r"https://discord\.com/channels/\d+/\d+", rollcall.strip()):
+    if rollcall and not rollcall.strip().startswith("https://discord.com"):
         await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
 
@@ -632,19 +631,26 @@ async def addwar(
     member="Member to assign tier",
     level="Tier role to assign (mention the role)",
     stars="Stars level, 2 or 3 (optional)",
+    rollcall="Roll‑call link",
 )
 async def addtier(
     interaction: discord.Interaction,
     member: discord.Member,
     level: discord.Role,
+    rollcall: str,
     stars: app_commands.Range[int, 2, 3] | None = None,
 ):
-
     caller = cast(discord.Member, interaction.user)
     if not has_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
-    await log_command_use(interaction)  # <<== llamada al log
+
+    # Validar que el rollcall empiece por https://discord.com
+    if not rollcall.strip().startswith("https://discord.com"):
+        await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
+        return
+
+    await log_command_use(interaction)
     await interaction.response.defer()
 
     level_name = level.name
@@ -657,7 +663,6 @@ async def addtier(
             await msg.delete()
         return
 
-    # Estrellas válidas solo para estos niveles
     valid_star_levels = {"Low-Tier", "Middle-Tier", "High-Tier", "Elite-Tier", "Celestial-Tier"}
     if stars and level_name not in valid_star_levels:
         msg = await interaction.followup.send("❌ Only Low-Tier, Middle-Tier, High-Tier, Elite-Tier and Celestial-Tier can receive stars.")
@@ -666,7 +671,7 @@ async def addtier(
             await msg.delete()
         return
 
-    # Eliminar cualquier Tier anterior (incluyendo estrellas previas)
+    # Eliminar Tiers anteriores (incluyendo estrellas)
     roles_to_remove = []
     for rid in tier_roles.values():
         role_obj = discord.utils.get(interaction.guild.roles, id=rid)
@@ -676,7 +681,7 @@ async def addtier(
     if roles_to_remove:
         await member.remove_roles(*roles_to_remove)
 
-    # Añadir el nuevo rol de Tier
+    # Añadir nuevo Tier
     new_tier_role = discord.utils.get(interaction.guild.roles, id=tier_role_id)
     added_roles = []
 
@@ -684,7 +689,7 @@ async def addtier(
         await member.add_roles(new_tier_role)
         added_roles.append(new_tier_role.mention)
 
-    # Añadir estrella si es válida
+    # Añadir estrella si procede
     if stars:
         star_label = "[ ⁑ ]" if stars == 2 else "[ ⁂ ]"
         star_role_id = tier_roles.get(star_label)
@@ -693,18 +698,21 @@ async def addtier(
             await member.add_roles(star_role)
             added_roles.append(star_role.mention)
 
-    # Confirmación visual
     embed = discord.Embed(
         title="🎇 Tier Updated",
-        description=f"{member.mention} has been assigned the Tier: **{level_name}**" +
-                    (f"\nStars: **{stars}**" if stars else "") +
-                    f"\nRoles given: {' | '.join(added_roles)}",
+        description=(
+            f"{member.mention} has been assigned the Tier: **{level_name}**"
+            + (f"\nStars: **{stars}**" if stars else "")
+            + f"\nRoles given: {' | '.join(added_roles)}"
+            + f"\n🔗 {rollcall}"
+        ),
         color=discord.Color.from_rgb(141, 228, 212)
     )
     msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(15)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
+
 
 # ───────────── /tierlist con paginación ─────────────
 class TierListView(discord.ui.View):
@@ -1084,6 +1092,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
