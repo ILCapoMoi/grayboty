@@ -241,11 +241,8 @@ group_ranks_order = [
 @bot.tree.command(name="showprofile", description="Show Training & Mission Points")
 @app_commands.describe(member="Member to view; leave empty for yourself")
 async def showprofile(interaction: discord.Interaction, member: discord.Member | None = None):
-    try:
-        if not interaction.response.is_done():
-            await interaction.response.defer(thinking=True)
-    except (discord.errors.InteractionResponded, discord.NotFound):
-        pass
+    if not interaction.response.is_done():
+        await interaction.response.defer(thinking=True)
 
     if member is None:
         member = interaction.user
@@ -1085,5 +1082,6 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
