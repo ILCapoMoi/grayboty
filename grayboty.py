@@ -271,7 +271,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
 
     embed.add_field(
         name="",
-        value="<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R2Laser:1395746474293198949> " \
+        value="<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R1Laser:1395746456681578628><:R2Laser:1395746474293198949> "
               "<:M2LaserInv:1395909504482283750><:M1Laser:1395909456986112110><:M1Laser:1395909456986112110><:M1Laser:1395909456986112110><:M1Laser:1395909456986112110><:H2LaserInv:1395909361494396948><:H1LaserInv:1395909332339790065>",
         inline=False
     )
@@ -315,7 +315,9 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         embed.add_field(name="**Level-Tier**", value=f"{emoji} {level_tier}{stars}", inline=False)
 
     # Requisitos o texto especial
-    if is_retired:
+    if current_rank in ["Gray Emperor", "Elder Gray Emperor"]:
+        embed.add_field(name="", value="**_Owner and Emperor of the Grey Order_**", inline=False)
+    elif is_retired:
         embed.add_field(name="", value="**_The legends will always be remembered_**", inline=False)
     else:
         next_rank = None
@@ -1082,6 +1084,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
