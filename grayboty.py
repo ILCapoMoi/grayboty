@@ -729,8 +729,8 @@ class TierListView(discord.ui.View):
 
     def create_embed(self):
         embed = discord.Embed(
-            title="# 🏆 TIER LEADERBOARD",
-            description="-# ――――――――――――――――――――\n" + "\n".join(self.pages[self.current_page]),
+            title="🏆 **TIER LEADERBOARD**",
+            description="# a ─────────────────────────\n" + "\n".join(self.pages[self.current_page]),
             color=discord.Color.from_rgb(255, 255, 255)
         )
         if self.invoker_pos:
@@ -845,15 +845,15 @@ async def tierlist(interaction: discord.Interaction):
         name = member.display_name
 
         if i == 1:
-            line = f"{str(i).rjust(2)}. 🥇 TOP1 {name} — {tier}"
+            line = f"{str(i).rjust(2)}. 🥇 __**TOP-1**__ » {name} — {tier}"
         elif i == 2:
-            line = f"{str(i).rjust(2)}. 🥈 TOP2 {name} — {tier}"
+            line = f"{str(i).rjust(2)}. 🥈 __**TOP-2**__ » {name} — {tier}"
         elif i == 3:
-            line = f"{str(i).rjust(2)}. 🥉 TOP3 {name} — {tier}"
+            line = f"{str(i).rjust(2)}. 🥉 __**TOP-3**__ » {name} — {tier}"
         elif i == 4:
-            line = f"{str(i).rjust(2)}. 🏅 TOP4 {name} — {tier}"
+            line = f"{str(i).rjust(2)}. 🏅 __TOP-4__ » {name} — {tier}"
         elif i == 5:
-            line = f"{str(i).rjust(2)}. 🎖️ TOP5 {name} — {tier}"
+            line = f"{str(i).rjust(2)}. 🎖️ __TOP-5__ » {name} — {tier}"
         else:
             line = f"{str(i).rjust(2)}. {emoji} {name} — {tier}"
         lines.append(line)
@@ -1104,4 +1104,5 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
