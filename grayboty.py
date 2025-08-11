@@ -729,8 +729,8 @@ class TierListView(discord.ui.View):
 
     def create_embed(self):
         embed = discord.Embed(
-            title="🏆 Tier Leaderboard",
-            description="\n".join(self.pages[self.current_page]),
+            title="🏆 __**TIER LEADERBOARD**__",
+            description="-# —————————————————\n" + "\n".join(self.pages[self.current_page]),
             color=discord.Color.from_rgb(255, 255, 255)
         )
         if self.invoker_pos:
@@ -842,9 +842,21 @@ async def tierlist(interaction: discord.Interaction):
     for i, (member, tier, _) in enumerate(members_with_tier, start=1):
         base_tier = tier.split(" [")[0].strip()
         emoji = tier_emojis.get(base_tier, "")
-        name = f"{emoji} {member.display_name}"
-        padded_name = name.ljust(max_name_len + 6)
-        lines.append(f"{i:>2}. {padded_name} — {tier}")
+        name = member.display_name
+
+        if i == 1:
+            line = f"🥇 **Top1** {name} — {tier}"
+        elif i == 2:
+            line = f"🥈 **Top2** {name} — {tier}"
+        elif i == 3:
+            line = f"🥉 **Top3** {name} — {tier}"
+        elif i == 4:
+            line = f"🏅 Top4 {name} — {tier}"
+        elif i == 5:
+            line = f"🎖️ Top5 {name} — {tier}"
+        else:
+            line = f"{i}. {emoji} {name} — {tier}"
+        lines.append(line)
 
     per_page = 15
     pages = [lines[i:i + per_page] for i in range(0, len(lines), per_page)]
@@ -1092,9 +1104,3 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
-
-
-
-
-
-
