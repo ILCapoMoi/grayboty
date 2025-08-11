@@ -729,8 +729,8 @@ class TierListView(discord.ui.View):
 
     def create_embed(self):
         embed = discord.Embed(
-            title="🏆 **TIER LEADERBOARD**",
-            description="# a ─────────────────────────\n" + "\n".join(self.pages[self.current_page]),
+            title="",
+            description="# 🏆 TIER LEADERBOARD\n-# ─────────────────────────\n" + "\n".join(self.pages[self.current_page]),
             color=discord.Color.from_rgb(255, 255, 255)
         )
         if self.invoker_pos:
@@ -1104,5 +1104,6 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
