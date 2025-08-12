@@ -13,7 +13,7 @@ Slash commands (all in English)
     * **member** → mention (one user)
     * **missionpoints** → integer ≥ 1
     * **rollcall** → link for bookkeeping
-* /setup *(admins only)* – manage which roles can use /addtp & /addmp:
+* /setup *(admins only)* – manage which roles can use /addtp & /addmp: nope
     * /setup addrole <role>
     * /setup removerole <role>
     * /setup list
@@ -413,7 +413,7 @@ async def addtp(
 ):
     caller = cast(discord.Member, interaction.user)
 
-    if not has_permission(caller):
+    if not has_basic_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
 
@@ -475,7 +475,7 @@ async def addmp(
     rollcall: str,
 ):
     caller = cast(discord.Member, interaction.user)
-    if not has_permission(caller):
+    if not has_basic_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
     # Validar que missionpoints no supere 4
@@ -519,7 +519,7 @@ async def addra(
     extra: str | None = None,
 ):
     caller = cast(discord.Member, interaction.user)
-    if not has_permission(caller):
+    if not has_basic_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
 
@@ -585,7 +585,7 @@ async def addwar(
     rollcall: str,
 ):
     caller = cast(discord.Member, interaction.user)
-    if not has_permission(caller):
+    if not has_basic_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
 
@@ -624,6 +624,58 @@ async def addwar(
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
+# ───────────── /addevent ─────────────
+@bot.tree.command(name="addeve", description="Add Event Points (Eve) and Mission Points (MP) to multiple members")
+@app_commands.describe(
+    members="Members to receive Event and Mission Points (only mentions allowed)",
+    rollcall="Roll-call message link (must start with https://discord.com)"
+)
+async def addeve(
+    interaction: discord.Interaction,
+    members: str,
+    rollcall: str,
+):
+    caller = cast(discord.Member, interaction.user)
+    if not has_basic_permission(caller):
+        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
+        return
+
+    # Validar link rollcall
+    if not rollcall.strip().startswith("https://discord.com"):
+        await interaction.response.send_message("❌ Invalid roll-call link format.", ephemeral=True)
+        return
+
+    # Extraer IDs de miembros mencionados en 'members'
+    member_ids = MENTION_RE.findall(members)
+    if not member_ids:
+        await interaction.response.send_message("❌ No valid member mentions found in members.", ephemeral=True)
+        return
+
+    await log_command_use(interaction)
+    await interaction.response.defer()
+
+    guild = interaction.guild
+    summary = []
+
+    for mid in member_ids:
+        member = guild.get_member(int(mid))
+        if member:
+            total_eve = add_points(guild.id, member.id, "eve", 1)
+            total_mp = add_points(guild.id, member.id, "mp", 1)
+            summary.append(f"{member.mention} +1 Eve → **{total_eve}**, +1 MP → **{total_mp}**")
+        else:
+            summary.append(f"User ID {mid} not found in guild.")
+
+    embed = discord.Embed(
+        title="✅ Event and Mission Points Added",
+        description="\n".join(summary) + (f"\n🔗 {rollcall}" if rollcall else ""),
+        color=discord.Color.gold()
+    )
+    msg = await interaction.followup.send(embed=embed)
+    await asyncio.sleep(15)
+    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
+        await msg.delete()
+
 
 # ───────────── /addtier ─────────────
 @bot.tree.command(name="addtier", description="Set or update a member's tier level")
@@ -641,7 +693,7 @@ async def addtier(
     stars: app_commands.Range[int, 2, 3] | None = None,
 ):
     caller = cast(discord.Member, interaction.user)
-    if not has_permission(caller):
+    if not has_basic_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
 
@@ -871,8 +923,12 @@ async def tierlist(interaction: discord.Interaction):
     members="Mentions or IDs of members separated by spaces",
     points="Points to remove (positive integer)"
 )
-@app_commands.checks.has_permissions(administrator=True)
 async def deltp(interaction: discord.Interaction, members: str, points: app_commands.Range[int, 1]):
+
+    caller = cast(discord.Member, interaction.user)
+    if not has_full_permission(caller):
+        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
+        return
 
     await interaction.response.defer()
     guild = interaction.guild
@@ -920,8 +976,12 @@ async def deltp(interaction: discord.Interaction, members: str, points: app_comm
     members="Mentions or IDs of members separated by spaces",
     points="Points to remove (positive integer)"
 )
-@app_commands.checks.has_permissions(administrator=True)
 async def delmp(interaction: discord.Interaction, members: str, points: app_commands.Range[int, 1]):
+
+    caller = cast(discord.Member, interaction.user)
+    if not has_full_permission(caller):
+        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
+        return
 
     await interaction.response.defer()
     guild = interaction.guild
@@ -970,13 +1030,17 @@ async def delmp(interaction: discord.Interaction, members: str, points: app_comm
     tp="Training Points to add (optional, default 0)",
     mp="Mission Points to add (optional, default 0)"
 )
-@app_commands.checks.has_permissions(administrator=True)
 async def addall(
     interaction: discord.Interaction,
     member: discord.Member,
     tp: app_commands.Range[int, 0] = 0,
     mp: app_commands.Range[int, 0] = 0,
 ):
+    caller = cast(discord.Member, interaction.user)
+    if not has_full_permission(caller):
+        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
+        return
+
     if tp == 0 and mp == 0:
         await interaction.response.send_message("❌ You must specify at least TP or MP points to add.", ephemeral=True)
         return
@@ -1007,22 +1071,26 @@ async def addall(
         await msg.delete()
 
 
-# ───────────── Autorización fija (roles permitidos para añadir puntos) ─────────────
+# ───────────── Autorización de roles ─────────────
+# Roles con acceso a comandos básicos
+BASIC_ROLE_IDS = {
+    1381235438563491841,  # LEADERSHIP
+    1399751111602212884,  # Gray Council
+    1381244026790871111,  # TGO | Staff
+}
 
-# Lista de IDs de roles que pueden usar comandos para añadir puntos.
-ALLOWED_ROLE_IDS = [
-    1380998711555002469,  # Elder Gray Emperor
-    1380998901263499314,  # Gray Emperor
-    1385195798576496741,  # Ashen Lord
-    1381369825015632023,  # Gray Lord
-    1381035805065347093,  # Master of Balance
-    1381369333279883384,  # Grandmaster
-    1387185214144647409,  # Master - On Trial
-]
+# Roles con acceso a todos los comandos (incluye avanzados)
+FULL_ROLE_IDS = {
+    1381235438563491841,  # LEADERSHIP
+    1399751111602212884,  # Gray Council
+}
 
-# Función para verificar si el miembro tiene un rol autorizado
-def has_permission(member: discord.Member) -> bool:
-    return any(role.id in ALLOWED_ROLE_IDS for role in member.roles)
+def has_basic_permission(member: discord.Member) -> bool:
+    return any(role.id in BASIC_ROLE_IDS for role in getattr(member, "roles", []))
+
+def has_full_permission(member: discord.Member) -> bool:
+    return any(role.id in FULL_ROLE_IDS for role in getattr(member, "roles", []))
+
 
 # ───────────── Eventos ─────────────
 @bot.event
@@ -1104,6 +1172,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
