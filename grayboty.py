@@ -250,7 +250,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     doc = points_collection.find_one({"guild_id": interaction.guild.id, "user_id": member.id})
 
     if not doc or (doc.get("tp", 0) == 0 and doc.get("mp", 0) == 0 and doc.get("rp", 0) == 0 and doc.get("wp", 0) == 0):
-        msg = await interaction.followup.send(f"_**{member.display_name}** has not yet woven their story into this place._")
+        msg = await interaction.followup.send(f" _**{member.display_name}** has not yet woven their story into this place._")
         await asyncio.sleep(15)
         with contextlib.suppress((discord.Forbidden, discord.NotFound)):
             await msg.delete()
@@ -1172,6 +1172,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
