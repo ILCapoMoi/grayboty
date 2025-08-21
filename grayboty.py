@@ -293,7 +293,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     is_retired = discord.utils.get(member.roles, id=retired_role_id)
 
     if is_retired:
-        embed.add_field(name="**Rank**", value="<:Retired:1401684470402121909> | Retired", inline=False)
+        embed.add_field(name="**Rank**", value="<:Retired:1408077202003857458> | Retired", inline=False)
     else:
         embed.add_field(name="**Rank**", value=f"{rank_emojis.get(current_rank, '')} | {current_rank}", inline=False)
 
@@ -1173,6 +1173,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
