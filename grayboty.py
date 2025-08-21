@@ -319,7 +319,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     if current_rank in ["Gray Emperor", "Elder Gray Emperor"]:
         embed.add_field(name="", value="**_Owner and Emperor of the Grey Order_**", inline=False)
     elif is_retired:
-        embed.add_field(name="", value="**_The legends will always be remembered_**", inline=False)
+        embed.add_field(name="", value="> The legends will always be remembered", inline=False)
     else:
         next_rank = None
         if current_rank in rank_list:
@@ -1173,6 +1173,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
