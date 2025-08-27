@@ -316,10 +316,12 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         embed.add_field(name="**Level-Tier**", value=f"{emoji} {level_tier}{stars}", inline=False)
 
     # Requisitos o texto especial
-    if current_rank in ["Gray Emperor", "Elder Gray Emperor"]:
-        embed.add_field(name="", value="**_Owner and Emperor of the Grey Order_**", inline=False)
+    if current_rank == "Elder Gray Emperor":
+        embed.add_field(name="", value="> Founder Owner and Emperor of The Grey Order", inline=False)
+    elif current_rank == "Gray Emperor":
+        embed.add_field(name="", value="> Co-Owner and Emperor of the Grey Order", inline=False)
     elif is_retired:
-        embed.add_field(name="", value="The legends will always be remembered", inline=False)
+        embed.add_field(name="", value="> The legends will always be remembered", inline=False)
     else:
         next_rank = None
         if current_rank in rank_list:
@@ -1173,6 +1175,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
