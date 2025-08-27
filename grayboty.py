@@ -1160,30 +1160,15 @@ def monitor_bot():
 # ───────────── Error Handler ─────────────
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-    try:
-        if isinstance(error, app_commands.MissingPermissions):
-            if not interaction.response.is_done():
-                await interaction.response.send_message("❌ You lack permission to do that.", ephemeral=True)
-            else:
-                await interaction.followup.send("❌ You lack permission to do that.", ephemeral=True)
-        elif isinstance(error, app_commands.CommandOnCooldown):
-            if not interaction.response.is_done():
-                await interaction.response.send_message("⏳ This command is on cooldown. Try again later.", ephemeral=True)
-            else:
-                await interaction.followup.send("⏳ This command is on cooldown. Try again later.", ephemeral=True)
-        elif isinstance(error, app_commands.CheckFailure):
-            if not interaction.response.is_done():
-                await interaction.response.send_message("❌ You don't meet the command requirements.", ephemeral=True)
-            else:
-                await interaction.followup.send("❌ You don't meet the command requirements.", ephemeral=True)
-        else:
-            if not interaction.response.is_done():
-                await interaction.response.send_message("⚠️ An unexpected error occurred.", ephemeral=True)
-            else:
-                await interaction.followup.send("⚠️ An unexpected error occurred.", ephemeral=True)
-            raise error
-    except discord.errors.HTTPException:
-        pass
+    if isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message("❌ You lack permission to do that.", ephemeral=True)
+    elif isinstance(error, app_commands.CommandOnCooldown):
+        await interaction.response.send_message("⏳ This command is on cooldown. Try again later.", ephemeral=True)
+    elif isinstance(error, app_commands.CheckFailure):
+        await interaction.response.send_message("❌ You don't meet the command requirements.", ephemeral=True)
+    else:
+        await interaction.response.send_message("⚠️ An unexpected error occurred.", ephemeral=True)
+        raise error
 
 # ───────────── Run bot ─────────────
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -1197,6 +1182,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
