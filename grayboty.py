@@ -286,7 +286,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
             user_medals_full.append(emoji)
         else:
             user_medals_full.append(glory_emoji)
-    embed.add_field(name="**Medals of honor**", value=" {} ".format(" | ".join(user_medals_full)), inline=False)
+    embed.add_field(name="**Medals of honor**", value=" {} ".format("  ┃  ".join(user_medals_full)), inline=False)
 
     # Rank
     retired_role_id = 1381562883803971605
@@ -1181,6 +1181,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
