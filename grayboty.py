@@ -1154,13 +1154,13 @@ def monitor_bot():
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.MissingPermissions):
-        await interaction.response.send_message("❌ You lack permission to do that.", ephemeral=True)
+        await interaction.followup.send("❌ You lack permission to do that.", ephemeral=True)
     elif isinstance(error, app_commands.CommandOnCooldown):
-        await interaction.response.send_message("⏳ This command is on cooldown. Try again later.", ephemeral=True)
+        await interaction.followup.send("⏳ This command is on cooldown. Try again later.", ephemeral=True)
     elif isinstance(error, app_commands.CheckFailure):
-        await interaction.response.send_message("❌ You don't meet the command requirements.", ephemeral=True)
+        await interaction.followup.send("❌ You don't meet the command requirements.", ephemeral=True)
     else:
-        await interaction.response.send_message("⚠️ An unexpected error occurred.", ephemeral=True)
+        await interaction.followup.send("⚠️ An unexpected error occurred.", ephemeral=True)
         raise error
 
 # ───────────── Run bot ─────────────
@@ -1175,6 +1175,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
