@@ -286,7 +286,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
             user_medals_full.append(emoji)
         else:
             user_medals_full.append(glory_emoji)
-    embed.add_field(name="**Medals of honor**", value=" {} ".format("  ┃  ".join(user_medals_full)), inline=False)
+    embed.add_field(name="**Medals of honor**", value=" {} ".format(" ┃ ".join(user_medals_full)), inline=False)
 
     # Rank
     retired_role_id = 1381562883803971605
@@ -425,7 +425,6 @@ async def addtp(
     if not has_basic_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
-
     # Validar link de rollcall
     if rollcall and not rollcall.strip().startswith("https://discord.com"):
         await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
@@ -434,34 +433,33 @@ async def addtp(
     await log_command_use(interaction)
     await interaction.response.defer()
     guild = interaction.guild
-
-    summary = []
-
-    # Añadir +1 TP al ejecutor si tiene permiso
+    # Añadir +1 TP al ejecutor si tiene permiso (internamente, no visible en embed)
     add_points(guild.id, caller.id, "tp", 1)
-    summary.append(f"{caller.mention} +1 TP _(command issuer reward)_")
-
+    # Construir la descripción del embed
+    embed_description = [f"{caller.mention} has added training points to:"]
     any_valid_mentions = False
 
     for cat, text in {"mvp": mvp, "promo": promo, "attended": attended}.items():
         pts_to_add = POINT_VALUES.get(cat, 0)
         if pts_to_add <= 0:
             continue
-
         for uid in MENTION_RE.findall(text):
             member = guild.get_member(int(uid))
             if member is not None:
                 any_valid_mentions = True
-                total = add_points(guild.id, member.id, "tp", pts_to_add)
-                summary.append(f"{member.mention} +{pts_to_add} TP → **{total}**")
+                add_points(guild.id, member.id, "tp", pts_to_add)
+                embed_description.append(f"{member.mention} +{pts_to_add} TP")
 
     if not any_valid_mentions:
         await interaction.followup.send("ℹ️ No valid member mentions found.")
         return
 
+    if rollcall:
+        embed_description.append(f"\n🔗 Rollcall: {rollcall}")
+
     embed = discord.Embed(
-        title="✅ Training Points Added",
-        description="\n".join(summary) + (f"\n🔗 {rollcall}" if rollcall else ""),
+        title="Training Points Added",
+        description="\n".join(embed_description),
         color=discord.Color.green()
     )
     msg = await interaction.followup.send(embed=embed)
@@ -495,19 +493,22 @@ async def addmp(
     if rollcall and not rollcall.strip().startswith("https://discord.com"):
         await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
-    await log_command_use(interaction)  # <<== llamada al log
+    await log_command_use(interaction)  # logs
     await interaction.response.defer()
-
-    # Solo añadir puntos si missionpoints es mayor que 0 (por seguridad)
+    # Solo añadir puntos si missionpoints es mayor que 0
     if missionpoints > 0:
-        total = add_points(interaction.guild.id, member.id, "mp", missionpoints)
-    else:
-        total = 0
+        add_points(interaction.guild.id, member.id, "mp", missionpoints)
+    # Construir descripción del embed
+    embed_description = [f"{caller.mention} has added mission points to {member.mention}:"]
+    embed_description.append(f"{member.mention} +{missionpoints} MP")
+    embed_description.append(f"\n🔗 Rollcall: {rollcall}")
+
     embed = discord.Embed(
-        title="✅ Mission Points Added",
-        description=f"{member.mention} +{missionpoints} MP → **{total}**" + (f"\n🔗 {rollcall}" if rollcall else ""),
+        title="Mission Points Added",
+        description="\n".join(embed_description),
         color=discord.Color.blue()
     )
+
     msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(15)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
@@ -1181,6 +1182,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
