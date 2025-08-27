@@ -330,14 +330,20 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
                 next_rank = rank_list[current_index + 1]
 
         if current_rank in ["Gray Lord", "Ashen Lord"]:
-            embed.add_field(name="", value="You are part of the TGO council.", inline=False)
-        elif current_rank in ["Silver Knight", "Master - On trial", "Grandmaster", "Master of Balance"]:
+            embed.add_field(name="", value="> Part of the council of The Grey Order", inline=False)
+        elif current_rank == "Silver Knight":
             if next_rank:
                 embed.add_field(
                     name="**Next rank**",
                     value=f"{rank_emojis.get(next_rank, '')} | {next_rank}\nFrom this rank onwards, promotions are decided by HR.",
                     inline=False
                 )
+        elif current_rank in ["Master - On trial", "Grandmaster", "Master of Balance"]:
+            embed.add_field(
+                name="",
+                value="From this rank onwards, promotions are decided by HR.",
+                inline=False
+            )
         elif next_rank in rank_requirements:
             req = rank_requirements[next_rank]
             req_text = (
@@ -1175,6 +1181,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
