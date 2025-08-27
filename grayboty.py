@@ -518,7 +518,7 @@ async def addmp(
 # ───────────── /addra ─────────────
 @bot.tree.command(name="addra", description="Add Raid Points (Rp) and Mission Points (Mp)")
 @app_commands.describe(
-    members="Members to receive Raid Points and +2 Mission Points",
+    members="Members to receive Raid Points",
     rollcall="Roll‑call message link",
     extra="Extra members to receive +1 Mission Point (optional)",
 )
@@ -551,13 +551,15 @@ async def addra(
     guild = interaction.guild
     summary = []
 
-    # Añadir Rp +1 y Mp +2 a members
+    # Mensaje inicial fuera del embed
+    await interaction.followup.send(f"{caller.mention} has added Raid Points to:")
+
+    # Añadir solo Rp +1 a members (sin Mp)
     for mid in member_ids:
         member = guild.get_member(int(mid))
         if member:
-            total_rp = add_points(guild.id, member.id, "rp", 1)
-            total_mp = add_points(guild.id, member.id, "mp", 2)
-            summary.append(f"{member.mention} +1 Rp, +2 Mp → Rp **{total_rp}**, Mp **{total_mp}**")
+            add_points(guild.id, member.id, "rp", 1)
+            summary.append(f"{member.mention} +1 Rp")
         else:
             summary.append(f"User ID {mid} not found in guild.")
 
@@ -566,13 +568,14 @@ async def addra(
         for eid in extra_ids:
             extra_member = guild.get_member(int(eid))
             if extra_member:
-                total_mp = add_points(guild.id, extra_member.id, "mp", 1)
-                summary.append(f"{extra_member.mention} +1 Mp (extra) → **{total_mp}**")
+                add_points(guild.id, extra_member.id, "mp", 1)
+                summary.append(f"{extra_member.mention} +1 Mp (extra)")
             else:
                 summary.append(f"User ID {eid} not found in guild.")
 
+    # Crear embed con lista de participantes y rollcall
     embed = discord.Embed(
-        title="✅ Raid & Mission Points Added",
+        title="Raid Points Added",
         description="\n".join(summary) + (f"\n🔗 {rollcall}" if rollcall else ""),
         color=discord.Color.dark_gold()
     )
@@ -580,7 +583,6 @@ async def addra(
     await asyncio.sleep(15)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
-
 
 
 # ───────────── /addwar ─────────────
@@ -616,16 +618,20 @@ async def addwar(
     guild = interaction.guild
     summary = []
 
+    # Mensaje inicial fuera del embed
+    await interaction.followup.send(f"{caller.mention} has added War Points to:")
+
     for mid in member_ids:
         member = guild.get_member(int(mid))
         if member:
-            total = add_points(guild.id, member.id, "wp", 1)
-            summary.append(f"{member.mention} +1 Wp → **{total}**")
+            add_points(guild.id, member.id, "wp", 1)
+            summary.append(f"{member.mention} +1 Wp")
         else:
             summary.append(f"User ID {mid} not found in guild.")
 
+    # Crear embed con lista de miembros y rollcall
     embed = discord.Embed(
-        title="✅ War Points Added",
+        title="War Points Added",
         description="\n".join(summary) + (f"\n🔗 {rollcall}" if rollcall else ""),
         color=discord.Color.purple()
     )
@@ -633,6 +639,7 @@ async def addwar(
     await asyncio.sleep(15)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
+
 
 # ───────────── /addevent ─────────────
 @bot.tree.command(name="addeve", description="Add Event Points (Eve) and Mission Points (MP) to multiple members")
@@ -667,17 +674,20 @@ async def addeve(
     guild = interaction.guild
     summary = []
 
+    # Mensaje inicial fuera del embed
+    await interaction.followup.send(f"{caller.mention} has added Event Points to:")
+
     for mid in member_ids:
         member = guild.get_member(int(mid))
         if member:
-            total_eve = add_points(guild.id, member.id, "eve", 1)
-            total_mp = add_points(guild.id, member.id, "mp", 1)
-            summary.append(f"{member.mention} +1 Eve → **{total_eve}**, +1 MP → **{total_mp}**")
+            add_points(guild.id, member.id, "eve", 1)
+            add_points(guild.id, member.id, "mp", 1)
+            summary.append(f"{member.mention} +1 Eve, +1 MP")
         else:
             summary.append(f"User ID {mid} not found in guild.")
 
     embed = discord.Embed(
-        title="✅ Event and Mission Points Added",
+        title="Event and Mission Points Added",
         description="\n".join(summary) + (f"\n🔗 {rollcall}" if rollcall else ""),
         color=discord.Color.gold()
     )
@@ -1182,6 +1192,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
