@@ -832,11 +832,13 @@ class TierListView(discord.ui.View):
 
     async def on_timeout(self):
         if self.message:
+            for child in self.children:
+                if isinstance(child, discord.ui.Button):
+                    child.disabled = True
             try:
-                await self.message.delete()
+                await self.message.edit(view=self)
             except discord.NotFound:
                 pass
-
 
 @bot.tree.command(name="tierlist", description="Show top members sorted by Tier and group rank")
 async def tierlist(interaction: discord.Interaction):
@@ -1192,3 +1194,4 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
