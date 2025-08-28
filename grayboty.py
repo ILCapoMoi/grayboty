@@ -838,7 +838,7 @@ class TierListView(discord.ui.View):
                 pass
 
 @bot.tree.command(name="tierlist", description="Show top members sorted by Tier and group rank")
-@app_commands.describe(tier="Optional: filter from this Tier upwards")
+@app_commands.describe(tier="Optional: filter by a specific Tier")
 @app_commands.choices(tier=[
     app_commands.Choice(name="✩ Legend-Tier", value="✩ Legend-Tier"),
     app_commands.Choice(name="★ Ashenlight-Tier", value="★ Ashenlight-Tier"),
@@ -858,11 +858,6 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
         "✩ Legend-Tier", "★ Ashenlight-Tier", "Celestial-Tier", "Elite-Tier",
         "High-Tier", "Middle-Tier", "Low-Tier"
     ]
-
-    # Si se especifica filtro, calculamos índice base
-    min_index = 0
-    if tier:
-        min_index = tier_order.index(tier.value)
 
     def get_member_tier(member: discord.Member) -> str | None:
         role_ids = {role.id for role in member.roles}
@@ -892,7 +887,7 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
         tier_name = get_member_tier(member)
         if tier_name:
             base = tier_name.split(" [")[0].strip()
-            if tier_order.index(base) >= min_index:  # aplicamos filtro aquí
+            if not tier or base == tier.value:  # filtro exacto
                 rank = get_member_rank(member) or "Initiate"
                 members_with_tier.append((member, tier_name, rank))
 
@@ -1204,6 +1199,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
