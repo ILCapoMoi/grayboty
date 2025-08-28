@@ -788,13 +788,16 @@ async def addtier(
 
 # ───────────── /tierlist con paginación ─────────────
 class TierListView(discord.ui.View):
-    def __init__(self, pages: list[list[str]], invoker_pos: int | None, filter_tier: str | None = None):
+    def __init__(self, pages: list[list[str]], invoker_pos: int | None):
         super().__init__(timeout=60)
         self.pages = pages
         self.current_page = 0
         self.invoker_pos = invoker_pos
-        self.filter_tier = filter_tier # filt-new x tier
         self.message: discord.Message | None = None
+
+    async def send_initial(self, interaction: discord.Interaction):
+        embed = self.create_embed()
+        self.message = await interaction.followup.send(embed=embed, view=self)
 
     def create_embed(self):
         embed = discord.Embed(
@@ -802,22 +805,11 @@ class TierListView(discord.ui.View):
             description="# 🏆 TIER LEADERBOARD\n-# ─────────────────────────\n" + "\n".join(self.pages[self.current_page]),
             color=discord.Color.from_rgb(255, 255, 255)
         )
-
-        footer_text = ""
         if self.invoker_pos:
-            footer_text = f"Your position is: {self.invoker_pos}"
+            embed.set_footer(text=f"Your position is: {self.invoker_pos}")
         else:
-            footer_text = "You have no Tier position."
-
-        if self.filter_tier:  # added
-            footer_text += f" | Filtered by Tier: {self.filter_tier}"
-
-        embed.set_footer(text=footer_text)
+            embed.set_footer(text="You have no Tier position.")
         return embed
-
-    async def send_initial(self, interaction: discord.Interaction):
-        embed = self.create_embed()
-        self.message = await interaction.response.send_message(embed=embed, view=self)
 
     async def update(self):
         if self.message:
@@ -840,26 +832,14 @@ class TierListView(discord.ui.View):
 
     async def on_timeout(self):
         if self.message:
-            for child in self.children:
-                if isinstance(child, discord.ui.Button):
-                    child.disabled = True
             try:
-                await self.message.edit(view=self)
+                await self.message.delete()
             except discord.NotFound:
                 pass
 
+
 @bot.tree.command(name="tierlist", description="Show top members sorted by Tier and group rank")
-@app_commands.describe(tier="Optional: Show members from this Tier and above")
-@app_commands.choices(tier=[
-    discord.app_commands.Choice(name="✩ Legend-Tier", value="✩ Legend-Tier"),
-    discord.app_commands.Choice(name="★ Ashenlight-Tier", value="★ Ashenlight-Tier"),
-    discord.app_commands.Choice(name="Celestial-Tier", value="Celestial-Tier"),
-    discord.app_commands.Choice(name="Elite-Tier", value="Elite-Tier"),
-    discord.app_commands.Choice(name="High-Tier", value="High-Tier"),
-    discord.app_commands.Choice(name="Middle-Tier", value="Middle-Tier"),
-    discord.app_commands.Choice(name="Low-Tier", value="Low-Tier"),
-])
-async def tierlist(interaction: discord.Interaction, tier: str | None = None):
+async def tierlist(interaction: discord.Interaction):
     await interaction.response.defer()
 
     guild = interaction.guild
@@ -893,6 +873,17 @@ async def tierlist(interaction: discord.Interaction, tier: str | None = None):
                 return rank
         return None
 
+    members_with_tier = []
+    for member in members:
+        tier = get_member_tier(member)
+        if tier:
+            rank = get_member_rank(member) or "Initiate"
+            members_with_tier.append((member, tier, rank))
+
+    if not members_with_tier:
+        await interaction.followup.send("No members with Tier roles found.")
+        return
+
     def parse_tier_components(tier_name: str):
         stars = 0
         if "[ ⁂ ]" in tier_name:
@@ -906,25 +897,6 @@ async def tierlist(interaction: discord.Interaction, tier: str | None = None):
     def rank_index(rank_name: str) -> int:
         return group_ranks_order.index(rank_name) if rank_name in group_ranks_order else len(group_ranks_order)
 
-    members_with_tier = []
-    for member in members:
-        member_tier = get_member_tier(member)
-        if member_tier:
-            rank = get_member_rank(member) or "Initiate"
-
-            # FILTRO POR TIER OPCIONAL
-            if tier:
-                member_base_index, _ = parse_tier_components(member_tier)
-                filter_base_index = tier_order.index(tier)
-                if member_base_index > filter_base_index:
-                    continue
-
-            members_with_tier.append((member, member_tier, rank))
-
-    if not members_with_tier:
-        await interaction.followup.send("No members with Tier roles found.")
-        return
-
     members_with_tier.sort(key=lambda x: (
         parse_tier_components(x[1]),
         rank_index(x[2])
@@ -937,38 +909,33 @@ async def tierlist(interaction: discord.Interaction, tier: str | None = None):
             invoker_pos = i
             break
 
-    # ───────────── Construcción de líneas ─────────────
     lines = []
+    max_name_len = max(len(m.display_name) for m, _, _ in members_with_tier)
     for i, (member, tier, _) in enumerate(members_with_tier, start=1):
         base_tier = tier.split(" [")[0].strip()
         emoji = tier_emojis.get(base_tier, "")
         name = member.display_name
 
-        if member.id == invoker_id:
-            name = f"__{name}__"
-
-        content = f"{name} — {tier}"
-
         if i == 1:
-            line = f"### {str(i).rjust(2)}. {emoji} TOP-1 » `{content}`"
+            line = f"{str(i).rjust(2)}. 🥇 __**TOP-1**__ » {name} — {tier}"
         elif i == 2:
-            line = f"### {str(i).rjust(2)}. {emoji} TOP-2 » `{content}`"
+            line = f"{str(i).rjust(2)}. 🥈 __**TOP-2**__ » {name} — {tier}"
         elif i == 3:
-            line = f"### {str(i).rjust(2)}. {emoji} TOP-3 » `{content}`"
+            line = f"{str(i).rjust(2)}. 🥉 __**TOP-3**__ » {name} — {tier}"
         elif i == 4:
-            line = f"### {str(i).rjust(2)}. {emoji} TOP-4 » `{content}`"
+            line = f"{str(i).rjust(2)}. 🏅 __TOP-4__ » {name} — {tier}"
         elif i == 5:
-            line = f"### {str(i).rjust(2)}. {emoji} TOP-5 » `{content}`"
+            line = f"{str(i).rjust(2)}. 🎖️ __TOP-5__ » {name} — {tier}"
         else:
-            line = f"### {str(i).rjust(2)}. {emoji} `{content}`"
-
+            line = f"{str(i).rjust(2)}. {emoji} {name} — {tier}"
         lines.append(line)
 
     per_page = 15
     pages = [lines[i:i + per_page] for i in range(0, len(lines), per_page)]
 
-    view = TierListView(pages=pages, invoker_pos=invoker_pos, filter_tier=tier)
+    view = TierListView(pages=pages, invoker_pos=invoker_pos)
     await view.send_initial(interaction)
+
 
 # ───────────── /deltp ─────────────
 @bot.tree.command(name="deltp", description="Remove Training Points from one or more members (Admin only)")
@@ -1225,27 +1192,3 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
