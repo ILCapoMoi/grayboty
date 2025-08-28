@@ -832,11 +832,8 @@ class TierListView(discord.ui.View):
 
     async def on_timeout(self):
         if self.message:
-            for child in self.children:
-                if isinstance(child, discord.ui.Button):
-                    child.disabled = True
             try:
-                await self.message.edit(view=self)
+                await self.message.delete()
             except discord.NotFound:
                 pass
 
@@ -1194,4 +1191,5 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
