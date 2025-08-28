@@ -944,6 +944,9 @@ async def tierlist(interaction: discord.Interaction, tier: str | None = None):
         emoji = tier_emojis.get(base_tier, "")
         name = member.display_name
 
+        if member.id == invoker_id:
+            name = f"__{name}__"
+
         content = f"{name} — {tier}"
 
         if i == 1:
@@ -1222,6 +1225,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
