@@ -889,26 +889,6 @@ async def tierlist(interaction: discord.Interaction, tier: str | None = None):
                 return rank
         return None
 
-    members_with_tier = []
-    for member in members:
-        member_tier = get_member_tier(member)
-        if member_tier:
-            rank = get_member_rank(member) or "Initiate"
-
-            # FILTRO POR TIER OPCIONAL
-            if tier:
-                # Compara índice del miembro vs índice del filtro
-                member_base_index, _ = parse_tier_components(member_tier)
-                filter_base_index = tier_order.index(tier)
-                if member_base_index > filter_base_index:
-                    continue  # No incluir miembros por debajo del filtro
-
-            members_with_tier.append((member, member_tier, rank))
-
-    if not members_with_tier:
-        await interaction.followup.send("No members with Tier roles found.")
-        return
-
     def parse_tier_components(tier_name: str):
         stars = 0
         if "[ ⁂ ]" in tier_name:
@@ -922,6 +902,25 @@ async def tierlist(interaction: discord.Interaction, tier: str | None = None):
     def rank_index(rank_name: str) -> int:
         return group_ranks_order.index(rank_name) if rank_name in group_ranks_order else len(group_ranks_order)
 
+    members_with_tier = []
+    for member in members:
+        member_tier = get_member_tier(member)
+        if member_tier:
+            rank = get_member_rank(member) or "Initiate"
+
+            # FILTRO POR TIER OPCIONAL
+            if tier:
+                member_base_index, _ = parse_tier_components(member_tier)
+                filter_base_index = tier_order.index(tier)
+                if member_base_index > filter_base_index:
+                    continue
+
+            members_with_tier.append((member, member_tier, rank))
+
+    if not members_with_tier:
+        await interaction.followup.send("No members with Tier roles found.")
+        return
+
     members_with_tier.sort(key=lambda x: (
         parse_tier_components(x[1]),
         rank_index(x[2])
@@ -934,35 +933,35 @@ async def tierlist(interaction: discord.Interaction, tier: str | None = None):
             invoker_pos = i
             break
 
-	lines = []
-	for i, (member, tier, _) in enumerate(members_with_tier, start=1):
-	    base_tier = tier.split(" [")[0].strip()
-	    emoji = tier_emojis.get(base_tier, "")
-	    name = member.display_name
-	    # Contenido dentro de inline code
-	    content = f"{name} — {tier}"
-	    # Mantener TOP-5 con numeración y ### al inicio
-	    if i == 1:
-	        line = f"### {str(i).rjust(2)}. {emoji} **__TOP-1__** » `{content}`"
-	    elif i == 2:
-	        line = f"### {str(i).rjust(2)}. {emoji} **__TOP-2__** » `{content}`"
-	    elif i == 3:
-	        line = f"### {str(i).rjust(2)}. {emoji} **__TOP-3__** » `{content}`"
-	    elif i == 4:
-	        line = f"### {str(i).rjust(2)}. {emoji} **TOP-4** » `{content}`"
-	    elif i == 5:
-	        line = f"### {str(i).rjust(2)}. {emoji} **TOP-5** » `{content}`"
-	    else:
-	        line = f"### {str(i).rjust(2)}. {emoji} `{content}`"
+    # ───────────── Construcción de líneas ─────────────
+    lines = []
+    for i, (member, tier, _) in enumerate(members_with_tier, start=1):
+        base_tier = tier.split(" [")[0].strip()
+        emoji = tier_emojis.get(base_tier, "")
+        name = member.display_name
 
-	    lines.append(line)
+        content = f"{name} — {tier}"
 
-	per_page = 15
-	pages = [lines[i:i + per_page] for i in range(0, len(lines), per_page)]
+        if i == 1:
+            line = f"### {str(i).rjust(2)}. {emoji} TOP-1 » `{content}`"
+        elif i == 2:
+            line = f"### {str(i).rjust(2)}. {emoji} TOP-2 » `{content}`"
+        elif i == 3:
+            line = f"### {str(i).rjust(2)}. {emoji} TOP-3 » `{content}`"
+        elif i == 4:
+            line = f"### {str(i).rjust(2)}. {emoji} TOP-4 » `{content}`"
+        elif i == 5:
+            line = f"### {str(i).rjust(2)}. {emoji} TOP-5 » `{content}`"
+        else:
+            line = f"### {str(i).rjust(2)}. {emoji} `{content}`"
 
-	view = TierListView(pages=pages, invoker_pos=invoker_pos, filter_tier=tier)
-	await view.send_initial(interaction)
+        lines.append(line)
 
+    per_page = 15
+    pages = [lines[i:i + per_page] for i in range(0, len(lines), per_page)]
+
+    view = TierListView(pages=pages, invoker_pos=invoker_pos, filter_tier=tier)
+    await view.send_initial(interaction)
 
 # ───────────── /deltp ─────────────
 @bot.tree.command(name="deltp", description="Remove Training Points from one or more members (Admin only)")
@@ -1219,6 +1218,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
