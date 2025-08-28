@@ -817,7 +817,7 @@ class TierListView(discord.ui.View):
 
     async def send_initial(self, interaction: discord.Interaction):
         embed = self.create_embed()
-        self.message = await interaction.followup.send(embed=embed, view=self)
+        self.message = await interaction.response.send_message(embed=embed, view=self)
 
     async def update(self):
         if self.message:
@@ -1222,6 +1222,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
