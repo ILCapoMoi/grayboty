@@ -838,7 +838,17 @@ class TierListView(discord.ui.View):
                 pass
 
 @bot.tree.command(name="tierlist", description="Show top members sorted by Tier and group rank")
-async def tierlist(interaction: discord.Interaction):
+@app_commands.describe(tier="Optional: filter from this Tier upwards")
+@app_commands.choices(tier=[
+    app_commands.Choice(name="✩ Legend-Tier", value="✩ Legend-Tier"),
+    app_commands.Choice(name="★ Ashenlight-Tier", value="★ Ashenlight-Tier"),
+    app_commands.Choice(name="Celestial-Tier", value="Celestial-Tier"),
+    app_commands.Choice(name="Elite-Tier", value="Elite-Tier"),
+    app_commands.Choice(name="High-Tier", value="High-Tier"),
+    app_commands.Choice(name="Middle-Tier", value="Middle-Tier"),
+    app_commands.Choice(name="Low-Tier", value="Low-Tier"),
+])
+async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[str] | None = None):
     await interaction.response.defer()
 
     guild = interaction.guild
@@ -849,12 +859,17 @@ async def tierlist(interaction: discord.Interaction):
         "High-Tier", "Middle-Tier", "Low-Tier"
     ]
 
+    # Si se especifica filtro, calculamos índice base
+    min_index = 0
+    if tier:
+        min_index = tier_order.index(tier.value)
+
     def get_member_tier(member: discord.Member) -> str | None:
         role_ids = {role.id for role in member.roles}
         base_tier = None
-        for tier in tier_order:
-            if tier_roles.get(tier) in role_ids:
-                base_tier = tier
+        for t in tier_order:
+            if tier_roles.get(t) in role_ids:
+                base_tier = t
                 break
         if not base_tier:
             return None
@@ -874,10 +889,12 @@ async def tierlist(interaction: discord.Interaction):
 
     members_with_tier = []
     for member in members:
-        tier = get_member_tier(member)
-        if tier:
-            rank = get_member_rank(member) or "Initiate"
-            members_with_tier.append((member, tier, rank))
+        tier_name = get_member_tier(member)
+        if tier_name:
+            base = tier_name.split(" [")[0].strip()
+            if tier_order.index(base) >= min_index:  # aplicamos filtro aquí
+                rank = get_member_rank(member) or "Initiate"
+                members_with_tier.append((member, tier_name, rank))
 
     if not members_with_tier:
         await interaction.followup.send("No members with Tier roles found.")
@@ -916,15 +933,11 @@ async def tierlist(interaction: discord.Interaction):
         name = member.display_name
 
         if i == 1:
-            line = f"{str(i).rjust(2)}. 🥇 __**TOP-1**__ » {name} — {tier}"
+            line = f"{str(i).rjust(2)}. {emoji} __**TOP-1**__ » {name} — {tier}"
         elif i == 2:
-            line = f"{str(i).rjust(2)}. 🥈 __**TOP-2**__ » {name} — {tier}"
+            line = f"{str(i).rjust(2)}. {emoji} **TOP-2** » {name} — {tier}"
         elif i == 3:
-            line = f"{str(i).rjust(2)}. 🥉 __**TOP-3**__ » {name} — {tier}"
-        elif i == 4:
-            line = f"{str(i).rjust(2)}. 🏅 __TOP-4__ » {name} — {tier}"
-        elif i == 5:
-            line = f"{str(i).rjust(2)}. 🎖️ __TOP-5__ » {name} — {tier}"
+            line = f"{str(i).rjust(2)}. {emoji} TOP-3 » {name} — {tier}"
         else:
             line = f"{str(i).rjust(2)}. {emoji} {name} — {tier}"
         lines.append(line)
@@ -1191,5 +1204,6 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
