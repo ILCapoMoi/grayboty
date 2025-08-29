@@ -807,8 +807,8 @@ class TierListView(discord.ui.View):
             title="",
             description=(
                 "# 🏆 TIER LEADERBOARD\n"
-                "-# ─────────────────────────"
                 f"{filter_text}\n"
+                "-# ─────────────────────────"
                 + "\n".join(self.pages[self.current_page])
             ),
             color=discord.Color.from_rgb(255, 255, 255)
@@ -938,11 +938,11 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
         emoji = tier_emojis.get(base_tier, "")
         name = member.display_name
         if i == 1:
-            line = f"{str(i).rjust(2)}. {emoji} 🥇__**TOP-1**__ » {name} — {tier_name}"
+            line = f"{str(i).rjust(2)}. {emoji} 🥇 __**TOP 1**__ » {name} — {tier_name}"
         elif i == 2:
-            line = f"{str(i).rjust(2)}. {emoji} 🥈__**TOP-2**__ » {name} — {tier_name}"
+            line = f"{str(i).rjust(2)}. {emoji} 🥈 __**TOP 2**__ » {name} — {tier_name}"
         elif i == 3:
-            line = f"{str(i).rjust(2)}. {emoji} 🥉__**TOP-3**__ » {name} — {tier_name}"
+            line = f"{str(i).rjust(2)}. {emoji} 🥉 __**TOP 3**__ » {name} — {tier_name}"
         else:
             line = f"{str(i).rjust(2)}. {emoji} {name} — {tier_name}"
         lines.append(line)
@@ -1220,3 +1220,4 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
