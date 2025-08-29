@@ -1188,16 +1188,14 @@ def monitor_bot():
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     async def safe_send(msg: str):
         try:
+            # Si la interacción ya fue respondida o deferida, usar followup
             if interaction.response.is_done():
-                # Ya se usó defer() o send_message() → toca followup
                 await interaction.followup.send(msg, ephemeral=True)
             else:
-                # Aún no hay respuesta → podemos usar response normal
                 await interaction.response.send_message(msg, ephemeral=True)
-        except discord.NotFound:
-            # La interacción ya expiró → ignoramos
+        except (discord.NotFound, discord.HTTPException):
+            # La interacción ya expiró o hubo un problema de red → ignorar
             pass
-
     if isinstance(error, app_commands.MissingPermissions):
         await safe_send("❌ You lack permission to do that.")
     elif isinstance(error, app_commands.CommandOnCooldown):
@@ -1205,8 +1203,9 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
     elif isinstance(error, app_commands.CheckFailure):
         await safe_send("❌ You don't meet the command requirements.")
     else:
+        # Registrar en consola en lugar de relanzar
+        print(f"Unexpected error in command: {error}")
         await safe_send("⚠️ An unexpected error occurred.")
-        raise error
 
 # ───────────── Run bot ─────────────
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -1220,5 +1219,6 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
