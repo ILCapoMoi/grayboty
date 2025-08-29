@@ -808,7 +808,7 @@ class TierListView(discord.ui.View):
             description=(
                 "# 🏆 TIER LEADERBOARD\n"
                 f"{filter_text}\n"
-                "-# ─────────────────────────"
+                "-# ─────────────────────────\n"
                 + "\n".join(self.pages[self.current_page])
             ),
             color=discord.Color.from_rgb(255, 255, 255)
@@ -1220,4 +1220,5 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
