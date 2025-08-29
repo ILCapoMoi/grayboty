@@ -788,19 +788,21 @@ async def addtier(
 
 # ───────────── /tierlist con paginación ─────────────
 class TierListView(discord.ui.View):
-    def __init__(self, pages: list[list[str]], invoker_pos: int | None):
+    def __init__(self, pages: list[list[str]], invoker_pos: int | None, filter_name: str | None = None):
         super().__init__(timeout=60)
         self.pages = pages
         self.current_page = 0
         self.invoker_pos = invoker_pos
+        self.filter_name = filter_name
         self.message: discord.Message | None = None
 
     async def send_initial(self, interaction: discord.Interaction):
         embed = self.create_embed()
-        self.message = await interaction.followup.send(embed=embed, view=self)
+        # Editamos la respuesta original en lugar de usar followup
+        self.message = await interaction.edit_original_response(embed=embed, view=self)
 
     def create_embed(self):
-        filter_text = f"\n-# 🔎 Filter applied: {self.filter}" if getattr(self, "filter", None) else ""
+        filter_text = f"\n-# 🔎 Filter applied: {self.filter_name}" if self.filter_name else ""
         embed = discord.Embed(
             title="",
             description=(
@@ -855,7 +857,8 @@ class TierListView(discord.ui.View):
     app_commands.Choice(name="Low-Tier", value="Low-Tier"),
 ])
 async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[str] | None = None):
-    await interaction.response.defer()
+    # Mostramos "Grayboty is thinking..." y extendemos tiempo a 15 minutos
+    await interaction.response.defer(thinking=True)
 
     guild = interaction.guild
     members = guild.members
@@ -888,17 +891,18 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
                 return rank
         return None
 
+    # Recolectamos miembros con Tier (aplicando filtro si hay)
     members_with_tier = []
     for member in members:
         tier_name = get_member_tier(member)
         if tier_name:
             base = tier_name.split(" [")[0].strip()
-            if not tier or base == tier.value:  # filtro exacto
+            if not tier or base == tier.value:
                 rank = get_member_rank(member) or "Initiate"
                 members_with_tier.append((member, tier_name, rank))
 
     if not members_with_tier:
-        await interaction.followup.send("No members with Tier roles found.")
+        await interaction.edit_original_response(content="No members with Tier roles found.", embed=None)
         return
 
     def parse_tier_components(tier_name: str):
@@ -919,6 +923,7 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
         rank_index(x[2])
     ))
 
+    # Posición del invocador
     invoker_pos = None
     invoker_id = interaction.user.id
     for i, (member, _, _) in enumerate(members_with_tier, start=1):
@@ -926,29 +931,27 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
             invoker_pos = i
             break
 
+    # Construimos líneas de la tabla
     lines = []
-    max_name_len = max(len(m.display_name) for m, _, _ in members_with_tier)
-    for i, (member, tier, _) in enumerate(members_with_tier, start=1):
-        base_tier = tier.split(" [")[0].strip()
+    for i, (member, tier_name, _) in enumerate(members_with_tier, start=1):
+        base_tier = tier_name.split(" [")[0].strip()
         emoji = tier_emojis.get(base_tier, "")
         name = member.display_name
-
         if i == 1:
-            line = f"{str(i).rjust(2)}. {emoji} __**TOP-1**__ » {name} — {tier}"
+            line = f"{str(i).rjust(2)}. {emoji} 🥇__**TOP-1**__ » {name} — {tier_name}"
         elif i == 2:
-            line = f"{str(i).rjust(2)}. {emoji} **TOP-2** » {name} — {tier}"
+            line = f"{str(i).rjust(2)}. {emoji} 🥈__**TOP-2**__ » {name} — {tier_name}"
         elif i == 3:
-            line = f"{str(i).rjust(2)}. {emoji} TOP-3 » {name} — {tier}"
+            line = f"{str(i).rjust(2)}. {emoji} 🥉__**TOP-3**__ » {name} — {tier_name}"
         else:
-            line = f"{str(i).rjust(2)}. {emoji} {name} — {tier}"
+            line = f"{str(i).rjust(2)}. {emoji} {name} — {tier_name}"
         lines.append(line)
-
+    # Paginación
     per_page = 15
     pages = [lines[i:i + per_page] for i in range(0, len(lines), per_page)]
-
-    view = TierListView(pages=pages, invoker_pos=invoker_pos)
+    # Creamos la vista pasando filtro para mostrarlo en embed
+    view = TierListView(pages=pages, invoker_pos=invoker_pos, filter_name=tier.value if tier else None)
     await view.send_initial(interaction)
-
 
 # ───────────── /deltp ─────────────
 @bot.tree.command(name="deltp", description="Remove Training Points from one or more members (Admin only)")
@@ -1217,10 +1220,3 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
-
-
-
-
-
-
-
