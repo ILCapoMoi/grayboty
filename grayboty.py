@@ -800,9 +800,15 @@ class TierListView(discord.ui.View):
         self.message = await interaction.followup.send(embed=embed, view=self)
 
     def create_embed(self):
+        filter_text = f"\n-# 🔎 Filter: {self.filter}" if getattr(self, "filter", None) else ""
         embed = discord.Embed(
             title="",
-            description="# 🏆 TIER LEADERBOARD\n-# ─────────────────────────\n" + "\n".join(self.pages[self.current_page]),
+            description=(
+                "# 🏆 TIER LEADERBOARD\n"
+                "-# ─────────────────────────"
+                f"{filter_text}\n"
+                + "\n".join(self.pages[self.current_page])
+            ),
             color=discord.Color.from_rgb(255, 255, 255)
         )
         if self.invoker_pos:
@@ -1199,6 +1205,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
