@@ -800,7 +800,7 @@ class TierListView(discord.ui.View):
         self.message = await interaction.followup.send(embed=embed, view=self)
 
     def create_embed(self):
-        filter_text = f"\n-# 🔎 Filter: {self.filter}" if getattr(self, "filter", None) else ""
+        filter_text = f"\n-# 🔎 Filter applied: {self.filter}" if getattr(self, "filter", None) else ""
         embed = discord.Embed(
             title="",
             description=(
@@ -1217,6 +1217,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
