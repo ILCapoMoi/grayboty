@@ -1183,14 +1183,26 @@ def monitor_bot():
 # ───────────── Error Handler ─────────────
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    async def safe_send(msg: str):
+        try:
+            if interaction.response.is_done():
+                # Ya se usó defer() o send_message() → toca followup
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                # Aún no hay respuesta → podemos usar response normal
+                await interaction.response.send_message(msg, ephemeral=True)
+        except discord.NotFound:
+            # La interacción ya expiró → ignoramos
+            pass
+
     if isinstance(error, app_commands.MissingPermissions):
-        await interaction.response.send_message("❌ You lack permission to do that.", ephemeral=True)
+        await safe_send("❌ You lack permission to do that.")
     elif isinstance(error, app_commands.CommandOnCooldown):
-        await interaction.response.send_message("⏳ This command is on cooldown. Try again later.", ephemeral=True)
+        await safe_send("⏳ This command is on cooldown. Try again later.")
     elif isinstance(error, app_commands.CheckFailure):
-        await interaction.response.send_message("❌ You don't meet the command requirements.", ephemeral=True)
+        await safe_send("❌ You don't meet the command requirements.")
     else:
-        await interaction.response.send_message("⚠️ An unexpected error occurred.", ephemeral=True)
+        await safe_send("⚠️ An unexpected error occurred.")
         raise error
 
 # ───────────── Run bot ─────────────
@@ -1205,6 +1217,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
