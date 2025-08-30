@@ -656,12 +656,10 @@ async def addeve(
     if not has_basic_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
-
     # Validar link rollcall
     if not rollcall.strip().startswith("https://discord.com"):
         await interaction.response.send_message("❌ Invalid roll-call link format.", ephemeral=True)
         return
-
     # Extraer IDs de miembros mencionados en 'members'
     member_ids = MENTION_RE.findall(members)
     if not member_ids:
@@ -673,9 +671,6 @@ async def addeve(
 
     guild = interaction.guild
     summary = []
-
-    # Mensaje inicial fuera del embed
-    await interaction.followup.send(f"{caller.mention} has added Event Points to:")
 
     for mid in member_ids:
         member = guild.get_member(int(mid))
@@ -695,7 +690,6 @@ async def addeve(
     await asyncio.sleep(15)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
-
 
 # ───────────── /addtier ─────────────
 @bot.tree.command(name="addtier", description="Set or update a member's tier level")
@@ -1254,3 +1248,4 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
