@@ -812,10 +812,11 @@ class TierListView(discord.ui.View):
             ),
             color=discord.Color.from_rgb(255, 255, 255)
         )
+        page_text = f"Page {self.current_page + 1}/{len(self.pages)}"
         if self.invoker_pos:
-            embed.set_footer(text=f"Your position is: {self.invoker_pos}")
+            embed.set_footer(text=f"Your position is: {self.invoker_pos}\n{page_text}")
         else:
-            embed.set_footer(text="You have no Tier position.")
+            embed.set_footer(text=f"You have no Tier position.\n{page_text}")
         return embed
 
     async def update(self):
@@ -1230,6 +1231,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
