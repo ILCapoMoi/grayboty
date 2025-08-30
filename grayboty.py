@@ -837,6 +837,18 @@ class TierListView(discord.ui.View):
             await self.update()
         await interaction.response.defer()
 
+    @discord.ui.button(label="Go to You", style=discord.ButtonStyle.success, emoji="🎯")
+    async def go_to_you(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.invoker_pos is None:
+            await interaction.response.send_message("You have no Tier position.", ephemeral=True)
+            return
+
+        per_page = 15  # mismo valor que en la paginación
+        target_page = (self.invoker_pos - 1) // per_page
+        self.current_page = target_page
+        await self.update()
+        await interaction.response.defer()
+
     @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
     async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.current_page < len(self.pages) - 1:
@@ -1231,6 +1243,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
