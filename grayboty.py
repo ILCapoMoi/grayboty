@@ -802,6 +802,17 @@ class TierListView(discord.ui.View):
 
     def create_embed(self):
         filter_text = f"\n-# 🔎 Filter applied: {self.filter_name}" if self.filter_name else ""
+
+        tier_colors = {
+            "✩ Legend-Tier": 0xebb9ff,
+            "★ Ashenlight-Tier": 0x8d4747,
+            "Celestial-Tier": 0x5583e7,
+            "Elite-Tier": 0x77d8a0,
+            "High-Tier": 0xc29b38,
+            "Middle-Tier": 0xd8dada,
+            "Low-Tier": 0x837373,
+        }
+        color = tier_colors.get(self.filter_name, 0xffffff)
         embed = discord.Embed(
             title="",
             description=(
@@ -810,7 +821,7 @@ class TierListView(discord.ui.View):
                 "-# ─────────────────────────\n"
                 + "\n".join(self.pages[self.current_page])
             ),
-            color=discord.Color.from_rgb(255, 255, 255)
+            color=color
         )
         page_text = f"Page {self.current_page + 1}/{len(self.pages)}"
         if self.invoker_pos:
@@ -1243,9 +1254,3 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
-
-
-
-
-
-
