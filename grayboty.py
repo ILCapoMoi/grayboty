@@ -798,7 +798,6 @@ class TierListView(discord.ui.View):
 
     async def send_initial(self, interaction: discord.Interaction):
         embed = self.create_embed()
-        # Editamos la respuesta original en lugar de usar followup
         self.message = await interaction.edit_original_response(embed=embed, view=self)
 
     def create_embed(self):
@@ -824,6 +823,12 @@ class TierListView(discord.ui.View):
             embed = self.create_embed()
             await self.message.edit(embed=embed, view=self)
 
+    @discord.ui.button(label="⏮️ First", style=discord.ButtonStyle.secondary)
+    async def first(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page = 0
+        await self.update()
+        await interaction.response.defer()
+
     @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.secondary)
     async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.current_page > 0:
@@ -836,6 +841,12 @@ class TierListView(discord.ui.View):
         if self.current_page < len(self.pages) - 1:
             self.current_page += 1
             await self.update()
+        await interaction.response.defer()
+
+    @discord.ui.button(label="⏭️ Last", style=discord.ButtonStyle.secondary)
+    async def last(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page = len(self.pages) - 1
+        await self.update()
         await interaction.response.defer()
 
     async def on_timeout(self):
@@ -1219,6 +1230,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
