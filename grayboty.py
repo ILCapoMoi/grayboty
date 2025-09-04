@@ -358,7 +358,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     embed.add_field(name="\u200b", value="-# <:OficialTGO:1395904116072648764> The Gray Order", inline=False)
     msg = await interaction.followup.send(embed=embed)
 
-    await asyncio.sleep(40)
+    await asyncio.sleep(30)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
@@ -463,7 +463,7 @@ async def addtp(
         color=discord.Color.green()
     )
     msg = await interaction.followup.send(embed=embed)
-    await asyncio.sleep(15)
+    await asyncio.sleep(20)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
@@ -510,7 +510,7 @@ async def addmp(
     )
 
     msg = await interaction.followup.send(embed=embed)
-    await asyncio.sleep(15)
+    await asyncio.sleep(20)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
        
@@ -580,7 +580,7 @@ async def addra(
         color=discord.Color.dark_gold()
     )
     msg = await interaction.followup.send(embed=embed)
-    await asyncio.sleep(15)
+    await asyncio.sleep(20)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
@@ -629,14 +629,13 @@ async def addwar(
         else:
             summary.append(f"User ID {mid} not found in guild.")
 
-    # Crear embed con lista de miembros y rollcall
     embed = discord.Embed(
         title="War Points Added",
         description="\n".join(summary) + (f"\n🔗 {rollcall}" if rollcall else ""),
         color=discord.Color.purple()
     )
     msg = await interaction.followup.send(embed=embed)
-    await asyncio.sleep(15)
+    await asyncio.sleep(20)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
@@ -687,7 +686,7 @@ async def addeve(
         color=discord.Color.gold()
     )
     msg = await interaction.followup.send(embed=embed)
-    await asyncio.sleep(15)
+    await asyncio.sleep(20)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
@@ -724,7 +723,7 @@ async def addtier(
 
     if not tier_role_id:
         msg = await interaction.followup.send("❌ Invalid tier level. Make sure you provide a valid Tier.")
-        await asyncio.sleep(15)
+        await asyncio.sleep(20)
         with contextlib.suppress((discord.Forbidden, discord.NotFound)):
             await msg.delete()
         return
@@ -775,7 +774,7 @@ async def addtier(
         color=discord.Color.from_rgb(141, 228, 212)
     )
     msg = await interaction.followup.send(embed=embed)
-    await asyncio.sleep(15)
+    await asyncio.sleep(20)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
@@ -1030,7 +1029,7 @@ async def deltp(interaction: discord.Interaction, members: str, points: app_comm
         color=discord.Color.orange()
     )
     msg = await interaction.followup.send(embed=embed)
-    await asyncio.sleep(15)
+    await asyncio.sleep(20)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
@@ -1083,7 +1082,7 @@ async def delmp(interaction: discord.Interaction, members: str, points: app_comm
         color=discord.Color.orange()
     )
     msg = await interaction.followup.send(embed=embed)
-    await asyncio.sleep(15)
+    await asyncio.sleep(20)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
@@ -1131,7 +1130,7 @@ async def addall(
         color=discord.Color.yellow()
     )
     msg = await interaction.followup.send(embed=embed)
-    await asyncio.sleep(15)
+    await asyncio.sleep(20)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
@@ -1248,4 +1247,5 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
