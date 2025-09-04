@@ -550,10 +550,6 @@ async def addra(
 
     guild = interaction.guild
     summary = []
-
-    # Mensaje inicial fuera del embed
-    await interaction.followup.send(f"{caller.mention} has added Raid Points to:")
-
     # Añadir solo Rp +1 a members (sin Mp)
     for mid in member_ids:
         member = guild.get_member(int(mid))
@@ -562,7 +558,6 @@ async def addra(
             summary.append(f"{member.mention} +1 Rp")
         else:
             summary.append(f"User ID {mid} not found in guild.")
-
     # Añadir Mp +1 a extra (si hay)
     if extra_ids:
         for eid in extra_ids:
@@ -617,9 +612,6 @@ async def addwar(
 
     guild = interaction.guild
     summary = []
-
-    # Mensaje inicial fuera del embed
-    await interaction.followup.send(f"{caller.mention} has added War Points to:")
 
     for mid in member_ids:
         member = guild.get_member(int(mid))
@@ -1247,5 +1239,6 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
