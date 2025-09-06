@@ -319,15 +319,11 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
             retired_detected = role
             break
 
+    # Rank + subtítulo
     if retired_detected:
         embed.add_field(
             name="**Rank**",
-            value=f"{retired_detected['emoji']} {retired_detected['name']}\n-# _{retired_detected['subtitle']}_",
-            inline=False
-        )
-        embed.add_field(
-            name="",
-            value=f"> {retired_detected['text']}",
+            value=f"{retired_detected['emoji']} {retired_detected['name']}\n#- _{retired_detected['subtitle']}_",
             inline=False
         )
     else:
@@ -351,43 +347,50 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         emoji = tier_emojis.get(level_tier, "")
         embed.add_field(name="**Level-Tier**", value=f"{emoji} {level_tier}{stars}", inline=False)
 
-    # Requisitos o texto especial
-    if current_rank == "Elder Gray Emperor":
-        embed.add_field(name="", value="> Founder, Owner and Emperor of The Grey Order", inline=False)
-    elif current_rank == "Gray Emperor":
-        embed.add_field(name="", value="> Leader and Emperor of the Grey Order", inline=False)
-    elif not retired_detected:
-        next_rank = None
-        if current_rank in rank_list:
-            current_index = rank_list.index(current_rank)
-            if current_index + 1 < len(rank_list):
-                next_rank = rank_list[current_index + 1]
+    # Texto especial de retirados o líderes (después del Level-Tier)
+    if retired_detected:
+        embed.add_field(
+            name="",
+            value=f"> {retired_detected['text']}",
+            inline=False
+        )
+    else:
+        if current_rank == "Elder Gray Emperor":
+            embed.add_field(name="", value="> Founder, Owner and Emperor of The Grey Order", inline=False)
+        elif current_rank == "Gray Emperor":
+            embed.add_field(name="", value="> Leader and Emperor of the Grey Order", inline=False)
+        else:
+            next_rank = None
+            if current_rank in rank_list:
+                current_index = rank_list.index(current_rank)
+                if current_index + 1 < len(rank_list):
+                    next_rank = rank_list[current_index + 1]
 
-        if current_rank in ["Gray Lord", "Ashen Lord"]:
-            embed.add_field(name="", value="> Part of the council of The Grey Order", inline=False)
-        elif current_rank == "Silver Knight":
-            if next_rank:
+            if current_rank in ["Gray Lord", "Ashen Lord"]:
+                embed.add_field(name="", value="> Part of the council of The Grey Order", inline=False)
+            elif current_rank == "Silver Knight":
+                if next_rank:
+                    embed.add_field(
+                        name="**Next rank**",
+                        value=f"{rank_emojis.get(next_rank, '')} | {next_rank}\nFrom this rank onwards, promotions are decided by HR.",
+                        inline=False
+                    )
+            elif current_rank in ["Master - On trial", "Grandmaster", "Master of Balance"]:
                 embed.add_field(
-                    name="**Next rank**",
-                    value=f"{rank_emojis.get(next_rank, '')} | {next_rank}\nFrom this rank onwards, promotions are decided by HR.",
+                    name="",
+                    value="From this rank onwards, promotions are decided by HR.",
                     inline=False
                 )
-        elif current_rank in ["Master - On trial", "Grandmaster", "Master of Balance"]:
-            embed.add_field(
-                name="",
-                value="From this rank onwards, promotions are decided by HR.",
-                inline=False
-            )
-        elif next_rank in rank_requirements:
-            req = rank_requirements[next_rank]
-            req_text = (
-                f"**Next rank**\n{rank_emojis.get(next_rank, '')} | {next_rank}\n"
-                f"\u00b7 _**{req.get('tp', 0)}** training points_\n"
-                f"\u00b7 _**{req.get('mp', 0)}** mission points_\n"
-            )
-            if req.get("tier"):
-                req_text += f"\u00b7 _**{req['tier']}** level_"
-            embed.add_field(name="", value=req_text, inline=False)
+            elif next_rank in rank_requirements:
+                req = rank_requirements[next_rank]
+                req_text = (
+                    f"**Next rank**\n{rank_emojis.get(next_rank, '')} | {next_rank}\n"
+                    f"\u00b7 _**{req.get('tp', 0)}** training points_\n"
+                    f"\u00b7 _**{req.get('mp', 0)}** mission points_\n"
+                )
+                if req.get("tier"):
+                    req_text += f"\u00b7 _**{req['tier']}** level_"
+                embed.add_field(name="", value=req_text, inline=False)
 
     embed.add_field(name="\u200b", value="-# <:OficialTGO:1395904116072648764> The Gray Order", inline=False)
     msg = await interaction.followup.send(embed=embed)
@@ -1273,4 +1276,5 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
