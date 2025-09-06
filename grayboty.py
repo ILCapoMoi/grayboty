@@ -294,7 +294,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
             "id": 1413828641397149716,  # Emeritus Emperor
             "name": "Emeritus Emperor",
             "subtitle": "Retired Emperor",
-            "emoji": "<:RetiredOw:1413856551944585348>",
+            "emoji": "<:RetiredTGO:1413919117949272105>",
             "text": "Once crowned, forever eternal."
         },
         {
@@ -1276,6 +1276,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
