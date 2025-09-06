@@ -288,12 +288,42 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
             user_medals_full.append(glory_emoji)
     embed.add_field(name="**Medals of honor**", value=" {} ".format(" ┃ ".join(user_medals_full)), inline=False)
 
-    # Rank
-    retired_role_id = 1381562883803971605
-    is_retired = discord.utils.get(member.roles, id=retired_role_id)
+    # Rank y retirados
+    retired_roles = [
+        {
+            "id": 1413828641397149716,  # Emeritus Emperor
+            "emoji": "<:RetiredOw:1413856551944585348>",
+            "text": "Once crowned, forever eternal."
+        },
+        {
+            "id": 1413829540987277332,  # Elder of Council
+            "emoji": "<:RetiredCo:1413856505987596380>",
+            "text": "Their wisdom echoes in every council hall."
+        },
+        {
+            "id": 1381562883803971605,  # Retired HR
+            "emoji": "<:RetiredHR:1413856468595114056>",
+            "text": "Their honor endures beyond their service."
+        }
+    ]
 
-    if is_retired:
-        embed.add_field(name="**Rank**", value="<:RetiredHR:1413856468595114056> | Retired", inline=False)
+    retired_detected = None
+    for role in retired_roles:
+        if discord.utils.get(member.roles, id=role["id"]):
+            retired_detected = role
+            break
+
+    if retired_detected:
+        embed.add_field(
+            name="**Rank**",
+            value=f"{retired_detected['emoji']} | Retired",
+            inline=False
+        )
+        embed.add_field(
+            name="",
+            value=f"> {retired_detected['text']}",
+            inline=False
+        )
     else:
         embed.add_field(name="**Rank**", value=f"{rank_emojis.get(current_rank, '')} | {current_rank}", inline=False)
 
@@ -320,9 +350,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         embed.add_field(name="", value="> Founder, Owner and Emperor of The Grey Order", inline=False)
     elif current_rank == "Gray Emperor":
         embed.add_field(name="", value="> Leader and Emperor of the Grey Order", inline=False)
-    elif is_retired:
-        embed.add_field(name="", value="> The legends will always be remembered", inline=False)
-    else:
+    elif not retired_detected:
         next_rank = None
         if current_rank in rank_list:
             current_index = rank_list.index(current_rank)
@@ -1239,6 +1267,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
