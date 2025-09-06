@@ -292,16 +292,22 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     retired_roles = [
         {
             "id": 1413828641397149716,  # Emeritus Emperor
+            "name": "Emeritus Emperor",
+            "subtitle": "Retired Emperor",
             "emoji": "<:RetiredOw:1413856551944585348>",
             "text": "Once crowned, forever eternal."
         },
         {
             "id": 1413829540987277332,  # Elder of Council
+            "name": "Elder of Council",
+            "subtitle": "Retired Council",
             "emoji": "<:RetiredCo:1413856505987596380>",
             "text": "Their wisdom echoes in every council hall."
         },
         {
             "id": 1381562883803971605,  # Retired HR
+            "name": "Retired",
+            "subtitle": "Retired HR",
             "emoji": "<:RetiredHR:1413856468595114056>",
             "text": "Their honor endures beyond their service."
         }
@@ -316,7 +322,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     if retired_detected:
         embed.add_field(
             name="**Rank**",
-            value=f"{retired_detected['emoji']} | Retired",
+            value=f"{retired_detected['emoji']} {retired_detected['name']}\n -# _{retired_detected['subtitle']}_",
             inline=False
         )
         embed.add_field(
@@ -1267,8 +1273,3 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
-
-
-
-
-
