@@ -322,7 +322,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     if retired_detected:
         embed.add_field(
             name="**Rank**",
-            value=f"{retired_detected['emoji']} {retired_detected['name']}\n -# _{retired_detected['subtitle']}_",
+            value=f"{retired_detected['emoji']} {retired_detected['name']}\n-# _{retired_detected['subtitle']}_",
             inline=False
         )
         embed.add_field(
@@ -1273,3 +1273,4 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
