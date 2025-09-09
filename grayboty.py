@@ -1021,7 +1021,7 @@ class PointsListView(discord.ui.View):
 
     async def send_initial(self, interaction: discord.Interaction):
         embed = self.create_embed()
-        self.message = await interaction.edit_original_response(embed=embed, view=self)
+        self.message = await interaction.followup.send(embed=embed, view=self)
 
     def create_embed(self):
         embed = discord.Embed(
@@ -1070,36 +1070,49 @@ class PointsListView(discord.ui.View):
             except discord.NotFound:
                 pass
 
+
 @bot.tree.command(name="pointslist", description="Show members ordered by Training and Mission Points")
 async def pointslist(interaction: discord.Interaction):
     await interaction.response.defer(thinking=True)
+    try:
+        docs = list(points_collection.find({}))
+        if not docs:
+            await interaction.followup.send("_No members are registered yet._")
+            return
 
-    docs = list(points_collection.find({}))
-    if not docs:
-        await interaction.edit_original_response(content="_No members are registered yet._", embed=None)
-        return
+        members_data = []
+        for doc in docs:
+            try:
+                user_id = doc.get("_id")
+                member = interaction.guild.get_member(int(user_id))
+                if not member:
+                    continue
 
-    members_data = []
-    for doc in docs:
-        user_id = doc.get("_id")
-        member = interaction.guild.get_member(int(user_id))
-        if not member:
-            continue
+                tp_total = doc.get("tp", 0) + doc.get("wp", 0)
+                mp_total = doc.get("mp", 0) + doc.get("rp", 0) + doc.get("ep", 0)
 
-        tp_total = doc.get("tp", 0) + doc.get("wp", 0)  # TP + WP
-        mp_total = doc.get("mp", 0) + doc.get("rp", 0) + doc.get("ep", 0)  # MP + RP + EP
+                members_data.append((member.display_name, tp_total, mp_total))
+            except Exception:
+                continue  # Ignora miembros con datos corruptos
 
-        members_data.append((member.display_name, tp_total, mp_total))
+        if not members_data:
+            await interaction.followup.send("_No valid members found._")
+            return
 
-    members_data.sort(key=lambda x: (x[1], x[2]), reverse=True)
-    lines = []
-    for i, (name, tp, mp) in enumerate(members_data, start=1):
-        lines.append(f"{str(i).rjust(2)}. {name} — TP: {tp} | MP: {mp}")
-    per_page = 15
-    pages = [lines[i:i + per_page] for i in range(0, len(lines), per_page)]
+        members_data.sort(key=lambda x: (x[1], x[2]), reverse=True)
 
-    view = PointsListView(pages=pages)
-    await view.send_initial(interaction)
+        lines = [f"{str(i).rjust(2)}. {name} — TP: {tp} | MP: {mp}"
+                 for i, (name, tp, mp) in enumerate(members_data, start=1)]
+
+        per_page = 15
+        pages = [lines[i:i + per_page] for i in range(0, len(lines), per_page)]
+
+        view = PointsListView(pages=pages)
+        await view.send_initial(interaction)
+
+    except Exception as e:
+        await interaction.followup.send(f"⚠️ An unexpected error occurred:\n```{e}```")
+        raise
 
 
 # ───────────── /deltp ─────────────
@@ -1368,6 +1381,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
