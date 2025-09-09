@@ -1075,17 +1075,13 @@ class PointsListView(discord.ui.View):
 async def pointslist(interaction: discord.Interaction):
     await interaction.response.defer(thinking=True)
     try:
-        docs = list(points_collection.find({}))
-        if not docs:
-            await interaction.followup.send("_No members are registered yet._")
-            return
-
+        guild = interaction.guild
         members_data = []
-        for doc in docs:
+
+        for member in guild.members:
             try:
-                user_id = doc.get("_id")
-                member = interaction.guild.get_member(int(user_id))
-                if not member:
+                doc = points_collection.find_one({"_id": str(member.id)})  # usa str si guardaste así
+                if not doc:
                     continue
 
                 tp_total = doc.get("tp", 0) + doc.get("wp", 0)
@@ -1093,12 +1089,13 @@ async def pointslist(interaction: discord.Interaction):
 
                 members_data.append((member.display_name, tp_total, mp_total))
             except Exception:
-                continue  # Ignora miembros con datos corruptos
+                continue  # ignora miembros con datos corruptos
 
         if not members_data:
-            await interaction.followup.send("_No valid members found._")
+            await interaction.followup.send("_No members with points found._")
             return
 
+        # Ordena: primero TP descendente, luego MP descendente
         members_data.sort(key=lambda x: (x[1], x[2]), reverse=True)
 
         lines = [f"{str(i).rjust(2)}. {name} — TP: {tp} | MP: {mp}"
@@ -1381,6 +1378,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
