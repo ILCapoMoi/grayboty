@@ -1010,6 +1010,98 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
     view = TierListView(pages=pages, invoker_pos=invoker_pos, filter_name=tier.value if tier else None)
     await view.send_initial(interaction)
 
+
+# ───────────── /pointslist con paginación ─────────────
+class PointsListView(discord.ui.View):
+    def __init__(self, pages: list[list[str]]):
+        super().__init__(timeout=35)  # auto-delete after 35s
+        self.pages = pages
+        self.current_page = 0
+        self.message: discord.Message | None = None
+
+    async def send_initial(self, interaction: discord.Interaction):
+        embed = self.create_embed()
+        self.message = await interaction.edit_original_response(embed=embed, view=self)
+
+    def create_embed(self):
+        embed = discord.Embed(
+            title="📊 Points Leaderboard",
+            description="\n".join(self.pages[self.current_page]),
+            color=discord.Color.dark_gray()
+        )
+        embed.set_footer(text=f"Page {self.current_page + 1}/{len(self.pages)}")
+        return embed
+
+    async def update(self):
+        if self.message:
+            embed = self.create_embed()
+            await self.message.edit(embed=embed, view=self)
+
+    @discord.ui.button(label="⏮️ First", style=discord.ButtonStyle.secondary)
+    async def first(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page = 0
+        await self.update()
+        await interaction.response.defer()
+
+    @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.secondary)
+    async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page > 0:
+            self.current_page -= 1
+            await self.update()
+        await interaction.response.defer()
+
+    @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
+    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page < len(self.pages) - 1:
+            self.current_page += 1
+            await self.update()
+        await interaction.response.defer()
+
+    @discord.ui.button(label="⏭️ Last", style=discord.ButtonStyle.secondary)
+    async def last(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page = len(self.pages) - 1
+        await self.update()
+        await interaction.response.defer()
+
+    async def on_timeout(self):
+        if self.message:
+            try:
+                await self.message.delete()
+            except discord.NotFound:
+                pass
+
+@bot.tree.command(name="pointslist", description="Show members ordered by Training and Mission Points")
+async def pointslist(interaction: discord.Interaction):
+    await interaction.response.defer(thinking=True)
+
+    docs = list(points_collection.find({}))
+    if not docs:
+        await interaction.edit_original_response(content="_No members are registered yet._", embed=None)
+        return
+
+    members_data = []
+    for doc in docs:
+        user_id = doc.get("_id")
+        member = interaction.guild.get_member(int(user_id))
+        if not member:
+            continue
+
+        tp_total = doc.get("tp", 0) + doc.get("wp", 0)  # TP + WP
+        mp_total = doc.get("mp", 0) + doc.get("rp", 0) + doc.get("ep", 0)  # MP + RP + EP
+
+        members_data.append((member.display_name, tp_total, mp_total))
+
+    members_data.sort(key=lambda x: (x[1], x[2]), reverse=True)
+    lines = []
+    for i, (name, tp, mp) in enumerate(members_data, start=1):
+        lines.append(f"{str(i).rjust(2)}. {name} — TP: {tp} | MP: {mp}")
+    per_page = 15
+    pages = [lines[i:i + per_page] for i in range(0, len(lines), per_page)]
+
+    view = PointsListView(pages=pages)
+    await view.send_initial(interaction)
+
+
 # ───────────── /deltp ─────────────
 @bot.tree.command(name="deltp", description="Remove Training Points from one or more members (Admin only)")
 @app_commands.describe(
@@ -1276,6 +1368,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
