@@ -823,7 +823,7 @@ class TierListView(discord.ui.View):
         self.message = await interaction.edit_original_response(embed=embed, view=self)
 
     def create_embed(self):
-        filter_text = f"\n-# 🔎 Filter applied: {self.filter_name}" if self.filter_name else ""
+        filter_text = f"\n 🔎 Filter applied: {self.filter_name}" if self.filter_name else ""
 
         tier_colors = {
             "✩ Legend-Tier": 0xebb9ff,
@@ -1277,11 +1277,3 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
-
-
-
-
-
-
-
-
