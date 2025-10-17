@@ -246,11 +246,11 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     if discord.utils.get(member.roles, id=ELDER_GRAY_EMPEROR_ID):
         user_medals_full = list(medal_roles.values())
     else:
-    for role_id, emoji in medal_roles.items():
-        if discord.utils.get(member.roles, id=role_id):
-            user_medals_full.append(emoji)
-        else:
-            user_medals_full.append(glory_emoji)
+        for role_id, emoji in medal_roles.items():
+            if discord.utils.get(member.roles, id=role_id):
+                user_medals_full.append(emoji)
+            else:
+                user_medals_full.append(glory_emoji)
     embed.add_field(
         name="**Medals of honor**",
         value=" {} ".format(" ┃ ".join(user_medals_full)),
@@ -1245,5 +1245,6 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
