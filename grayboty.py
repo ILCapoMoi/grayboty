@@ -242,7 +242,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     # Medallas
     glory_emoji = "<:Glory:1401695802660749362>"
     user_medals_full = []
-    ELDER_GRAY_EMPEROR_ID = 1383019789042516008
+    ELDER_GRAY_EMPEROR_ID = 1380998711555002469
     if discord.utils.get(member.roles, id=ELDER_GRAY_EMPEROR_ID):
         user_medals_full = list(medal_roles.values())
     else:
@@ -1245,4 +1245,5 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
