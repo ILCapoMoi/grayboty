@@ -1,41 +1,3 @@
-"""
-GrayPointsBot – Discord bot for tracking Training Points (TP) and Mission Points (MP)
-===================================================================
-Slash commands (all in English)
-------------------------------
-* /showprofile [member] – shows TP & MP. If *member* omitted, shows yourself.
-* /addtp – add training points with automatic weighting:
-    * **mvp**   → each mention +3 TP
-    * **promo** → each mention +2 TP
-    * **attended** → each mention +1 TP
-    * **rollcall** → link for bookkeeping (stored in the confirmation msg only)
-* /addmp – add mission points:
-    * **member** → mention (one user)
-    * **missionpoints** → integer ≥ 1
-    * **rollcall** → link for bookkeeping
-* /setup *(admins only)* – manage which roles can use /addtp & /addmp: nope
-    * /setup addrole <role>
-    * /setup removerole <role>
-    * /setup list
-
-All confirmation messages auto‑delete after 10 s to keep channels tidy.
-
-File structure & persistence
----------------------------
-GrayBot/
-├─ bot_points.py    ← this script
-├─ points.json      ← {"guild_id": {"user_id": {"tp": int, "mp": int}}}
-├─ config.json      ← {"guild_id": [role_id, ...]}
-└─ .env             ← DISCORD_TOKEN=xxxxx
-
-
-Requirements
-------------
-* Python ≥ 3.10
-* pip install -U "discord.py[voice]>=2.4.0"
-
------------------------------------------------------
-"""
 # ─────────────── Imports ───────────────
 import os
 import re
@@ -280,14 +242,20 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     # Medallas
     glory_emoji = "<:Glory:1401695802660749362>"
     user_medals_full = []
-
+    ELDER_GRAY_EMPEROR_ID = 1383019789042516008
+    if discord.utils.get(member.roles, id=ELDER_GRAY_EMPEROR_ID):
+        user_medals_full = list(medal_roles.values())
+    else:
     for role_id, emoji in medal_roles.items():
         if discord.utils.get(member.roles, id=role_id):
             user_medals_full.append(emoji)
         else:
             user_medals_full.append(glory_emoji)
-    embed.add_field(name="**Medals of honor**", value=" {} ".format(" ┃ ".join(user_medals_full)), inline=False)
-
+    embed.add_field(
+        name="**Medals of honor**",
+        value=" {} ".format(" ┃ ".join(user_medals_full)),
+        inline=False
+    )
     # Rank y retirados
     retired_roles = [
         {
@@ -1277,3 +1245,4 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
