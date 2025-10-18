@@ -242,8 +242,8 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     # Medallas
     glory_emoji = "<:Glory:1401695802660749362>"
     user_medals_full = []
-    ELDER_GRAY_EMPEROR_ID = 1380998711555002469
-    if discord.utils.get(member.roles, id=ELDER_GRAY_EMPEROR_ID):
+    LEADER = 1419415839471304856
+    if discord.utils.get(member.roles, id=LEADER):
         user_medals_full = list(medal_roles.values())
     else:
         for role_id, emoji in medal_roles.items():
@@ -262,7 +262,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
             "id": 1413828641397149716,  # Emeritus Emperor
             "name": "Emeritus Emperor",
             "subtitle": "Retired Emperor",
-            "emoji": "<:RetiredTGO:1413919117949272105>",
+            "emoji": "<:RetiredTGO:1429142210301005904>",
             "text": "Once crowned, forever eternal."
         },
         {
@@ -1245,6 +1245,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
