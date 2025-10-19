@@ -277,13 +277,11 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
             "text": "Their honor endures beyond their service."
         }
     ]
-
     retired_detected = None
     for role in retired_roles:
         if discord.utils.get(member.roles, id=role["id"]):
             retired_detected = role
             break
-
     # Rank + subtítulo
     if retired_detected:
         embed.add_field(
@@ -1242,6 +1240,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
