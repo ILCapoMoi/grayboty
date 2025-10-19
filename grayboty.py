@@ -125,8 +125,8 @@ rank_emojis = {
     "Master of Balance": "<:Mbalance:1384835972813820057>",
     "Gray Lord": "<:GrayLord:1395372415856410686>",
     "Ashen Lord": "<:AshenLord:1395372378728431626>",
-    "Gray Emperor": "<:Silver:1384690687189975090>",
-    "Elder Gray Emperor": "<:gold:1384690646803284038>",
+    "Gray Emperor": "<:GrayEmp:1429396732269035622>",
+    "Elder Gray Emperor": "<:ElderEmp:1429396655085715498>",
 }
 def get_highest_rank(member: discord.Member) -> str:
     member_roles = [role.name for role in member.roles]
@@ -261,21 +261,18 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         {
             "id": 1413828641397149716,  # Emeritus Emperor
             "name": "Emeritus Emperor",
-            "subtitle": "Retired Emperor",
             "emoji": "<:RetiredTGO:1429142210301005904>",
             "text": "Once crowned, forever eternal."
         },
         {
             "id": 1413829540987277332,  # Elder of Council
             "name": "Elder of Council",
-            "subtitle": "Retired Council",
             "emoji": "<:RetiredCo:1413856505987596380>",
             "text": "Their wisdom echoes in every council hall."
         },
         {
             "id": 1381562883803971605,  # Retired HR
             "name": "Retired",
-            "subtitle": "Retired HR",
             "emoji": "<:RetiredHR:1413856468595114056>",
             "text": "Their honor endures beyond their service."
         }
@@ -360,7 +357,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
                     req_text += f"\u00b7 _**{req['tier']}** level_"
                 embed.add_field(name="", value=req_text, inline=False)
 
-    embed.add_field(name="\u200b", value="-# <:OficialTGO:1395904116072648764> The Gray Order", inline=False)
+    embed.add_field(name="", value="-# <:OficialTGO:1395904116072648764> The Gray Order", inline=False)
     msg = await interaction.followup.send(embed=embed)
 
     await asyncio.sleep(30)
@@ -1245,6 +1242,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
