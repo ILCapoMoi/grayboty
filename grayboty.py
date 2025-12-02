@@ -259,14 +259,14 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     # Rank y retirados
     retired_roles = [
         {
-            "id": 1413828641397149716,  # Emeritus Emperor
+            "id": 1413828641397149716,  # Retired Emperor
             "name": "Emeritus Emperor",
             "subtitle": "\u200b",
             "emoji": "<:RetiredTGO:1429142210301005904>",
             "text": "Once crowned, forever eternal."
         },
         {
-            "id": 1413829540987277332,  # Elder of Council
+            "id": 1413829540987277332,  # Retired Council
             "name": "Elder of Council",
             "subtitle": "\u200b",
             "emoji": "<:RetiredCo:1413856505987596380>",
@@ -705,7 +705,6 @@ async def addtier(
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
 
-    # Validar que el rollcall empiece por https://discord.com
     if not rollcall.strip().startswith("https://discord.com"):
         await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
@@ -1142,6 +1141,7 @@ BASIC_ROLE_IDS = {
 # Roles con acceso a todos los comandos (incluye avanzados)
 FULL_ROLE_IDS = {
     1381235438563491841,  # LEADERSHIP
+    1413828641397149716,  # Emetitus Emperor
     1399751111602212884,  # Gray Council
 }
 
@@ -1243,11 +1243,3 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
-
-
-
-
-
-
-
-
