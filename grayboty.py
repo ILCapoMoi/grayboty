@@ -81,6 +81,7 @@ POINT_VALUES = {"mvp": 3, "promo": 2, "attended": 1}
 intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
+
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
@@ -90,21 +91,16 @@ async def on_error(event, *args, **kwargs):
     traceback.print_exc()
 
 @bot.tree.error
-async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+async def on_app_command_error(
+    interaction: discord.Interaction,
+    error: app_commands.AppCommandError
+):
     print(f"[COMMAND ERROR] {interaction.command.name if interaction.command else 'Unknown'}: {error}")
     with contextlib.suppress(Exception):
-        await interaction.followup.send("⚠️ An error occurred while executing the command.", ephemeral=True)
-
-@bot.event
-async def on_ready():
-    print(f"🤖 Bot started as {bot.user} (ID: {bot.user.id}) — connected successfully.")
-    try:
-        synced = await bot.tree.sync()
-        print(f"☑️ Synced {len(synced)} slash commands.")
-    except Exception as e:
-        print(f"❌ Slash command sync error: {e}")
-
-    threading.Thread(target=monitor_bot, daemon=True).start()
+        await interaction.followup.send(
+            "⚠️ An error occurred while executing the command.",
+            ephemeral=True
+        )
 
 # ───────────── RANK SYSTEM ─────────────
 rank_list = [
@@ -1159,17 +1155,17 @@ def has_basic_permission(member: discord.Member) -> bool:
 def has_full_permission(member: discord.Member) -> bool:
     return any(role.id in FULL_ROLE_IDS for role in getattr(member, "roles", []))
 
-
 # ───────────── Eventos ─────────────
 @bot.event
 async def on_ready():
     print(f"🤖 Bot started as {bot.user} (ID: {bot.user.id}) — connected successfully.")
-    try:
-        synced = await bot.tree.sync()
-        print(f"☑️ Synced {len(synced)} slash commands.")
-    except Exception as e:
-        print(f"❌ Slash command sync error: {e}")
-
+    if not hasattr(bot, "synced"):
+        try:
+            synced = await bot.tree.sync()
+            print(f"☑️ Synced {len(synced)} slash commands.")
+            bot.synced = True
+        except Exception as e:
+            print(f"❌ Slash command sync error: {e}")
     threading.Thread(target=monitor_bot, daemon=True).start()
 
 # ───────────── Keep‑alive server ─────────────
@@ -1251,6 +1247,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
