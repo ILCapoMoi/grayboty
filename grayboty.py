@@ -3,7 +3,9 @@ import os
 import re
 import sys
 import time
+import logging
 import threading
+import traceback
 import contextlib
 import asyncio
 from typing import List, cast
@@ -200,12 +202,10 @@ group_ranks_order = [
 @bot.tree.command(name="showprofile", description="Show Training & Mission Points")
 @app_commands.describe(member="Member to view; leave empty for yourself")
 async def showprofile(interaction: discord.Interaction, member: discord.Member | None = None):
-
+    
     await interaction.response.defer(thinking=True)
-
     if member is None:
         member = interaction.user
-
     # Cache local de roles (CRÍTICO)
     member_roles = member.roles
     member_role_ids = {role.id for role in member_roles}
@@ -257,7 +257,6 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
               "<:H1LaserInv:1395909332339790065>",
         inline=False
     )
-
     # ─── Medallas ───
     glory_emoji = "<:Glory:1401695802660749362>"
     LEADER = 1419415839471304856
@@ -275,7 +274,6 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         value=" ┃ ".join(user_medals_full),
         inline=False
     )
-
     # ─── Retired detection ───
     retired_detected = next(
         (r for r in retired_roles if r["id"] in member_role_ids),
@@ -297,7 +295,6 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
             value=f"{rank_emojis.get(current_rank, '')} | {current_rank}",
             inline=False
         )
-
     # ─── Level-Tier ───
     level_tier = next(
         (base for base in (
@@ -318,7 +315,6 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
             value=f"{tier_emojis.get(level_tier, '')} {level_tier}{stars}",
             inline=False
         )
-
     # ─── Texto final ───
     if retired_detected:
         embed.add_field(name="", value=f"> {retired_detected['text']}", inline=False)
@@ -365,7 +361,6 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     )
 
     msg = await interaction.followup.send(embed=embed)
-
     await asyncio.sleep(30)
     with contextlib.suppress(discord.Forbidden, discord.NotFound):
         await msg.delete()
@@ -432,19 +427,20 @@ async def addtp(
     if not has_basic_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
-    # Validar link de rollcall
-    if rollcall and not rollcall.strip().startswith("https://discord.com"):
+    rollcall = rollcall.strip()
+    if rollcall and "discord" not in rollcall:
         await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
-
     await log_command_use(interaction)
     await interaction.response.defer()
     guild = interaction.guild
     # Añadir +1 TP al ejecutor si tiene permiso (internamente, no visible en embed)
     add_points(guild.id, caller.id, "tp", 1)
-    # Construir la descripción del embed
+
     embed_description = [f"{caller.mention} has added training points to:"]
     any_valid_mentions = False
+    # Preparamos un diccionario por cantidad de TP para batch
+    batch_additions: dict[int, list[int]] = {}  # {points: [member_id,...]}
 
     for cat, text in {"mvp": mvp, "promo": promo, "attended": attended}.items():
         pts_to_add = POINT_VALUES.get(cat, 0)
@@ -454,16 +450,16 @@ async def addtp(
             member = guild.get_member(int(uid))
             if member is not None:
                 any_valid_mentions = True
-                add_points(guild.id, member.id, "tp", pts_to_add)
+                batch_additions.setdefault(pts_to_add, []).append(member.id)
                 embed_description.append(f"{member.mention} +{pts_to_add} TP")
-
     if not any_valid_mentions:
         await interaction.followup.send("ℹ️ No valid member mentions found.")
         return
 
+    for pts, member_ids in batch_additions.items():
+        add_points_batch(guild.id, member_ids, "tp", pts)  # batch
     if rollcall:
         embed_description.append(f"\n🔗 Rollcall: {rollcall}")
-
     embed = discord.Embed(
         title="Training Points Added",
         description="\n".join(embed_description),
@@ -473,7 +469,6 @@ async def addtp(
     await asyncio.sleep(20)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
-
 
 # ───────────── /addmp ─────────────
 @bot.tree.command(name="addmp", description="Add Mission Points to a member")
@@ -496,10 +491,12 @@ async def addmp(
     if missionpoints > 4:
         await interaction.response.send_message("❌ You cannot add more than 4 Mission Points with this command.", ephemeral=True)
         return
-    # Validar link rollcall
-    if rollcall and not rollcall.strip().startswith("https://discord.com"):
+        
+    rollcall = rollcall.strip()
+    if rollcall and "discord" not in rollcall:
         await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
+        
     await log_command_use(interaction)  # logs
     await interaction.response.defer()
     # Solo añadir puntos si missionpoints es mayor que 0
@@ -521,7 +518,6 @@ async def addmp(
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
        
-
 # ───────────── /addra ─────────────
 @bot.tree.command(name="addra", description="Add Raid Points (Rp) and Mission Points (Mp)")
 @app_commands.describe(
@@ -539,42 +535,40 @@ async def addra(
     if not has_basic_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
-
-    # Validar link rollcall
-    if rollcall and not rollcall.strip().startswith("https://discord.com"):
+    rollcall = rollcall.strip()
+    if rollcall and "discord" not in rollcall:
         await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
-
-    member_ids = MENTION_RE.findall(members)
+    member_ids = [int(mid) for mid in MENTION_RE.findall(members)]
     if not member_ids:
         await interaction.response.send_message("❌ No valid member mentions found in members.", ephemeral=True)
         return
-
-    extra_ids = MENTION_RE.findall(extra) if extra else []
-
+    extra_ids = [int(eid) for eid in MENTION_RE.findall(extra)] if extra else []
     await log_command_use(interaction)
     await interaction.response.defer()
 
     guild = interaction.guild
     summary = []
-    # Añadir solo Rp +1 a members (sin Mp)
+    # BATCH: obtener todos los miembros de members
+    members_objs = {m.id: m for m in guild.members if m.id in member_ids}
     for mid in member_ids:
-        member = guild.get_member(int(mid))
+        member = members_objs.get(mid)
         if member:
-            add_points(guild.id, member.id, "rp", 1)
             summary.append(f"{member.mention} +1 Rp")
         else:
             summary.append(f"User ID {mid} not found in guild.")
-    # Añadir Mp +1 a extra (si hay)
-    if extra_ids:
-        for eid in extra_ids:
-            extra_member = guild.get_member(int(eid))
-            if extra_member:
-                add_points(guild.id, extra_member.id, "mp", 1)
-                summary.append(f"{extra_member.mention} +1 Mp (extra)")
-            else:
-                summary.append(f"User ID {eid} not found in guild.")
-
+    # Llamada a DB en batch
+    add_points_batch(guild.id, list(members_objs.keys()), "rp", 1)
+    # BATCH: extra MPs
+    extra_objs = {m.id: m for m in guild.members if m.id in extra_ids}
+    for eid in extra_ids:
+        extra_member = extra_objs.get(eid)
+        if extra_member:
+            summary.append(f"{extra_member.mention} +1 Mp (extra)")
+        else:
+            summary.append(f"User ID {eid} not found in guild.")
+    if extra_objs:
+        add_points_batch(guild.id, list(extra_objs.keys()), "mp", 1)
     # Crear embed con lista de participantes y rollcall
     embed = discord.Embed(
         title="Raid Points Added",
@@ -585,7 +579,6 @@ async def addra(
     await asyncio.sleep(20)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
-
 
 # ───────────── /addwar ─────────────
 @bot.tree.command(name="addwar", description="Add War Points (Wp) to multiple members")
@@ -602,31 +595,28 @@ async def addwar(
     if not has_basic_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
-
-    # Validar link rollcall
-    if rollcall and not rollcall.strip().startswith("https://discord.com"):
+    rollcall = rollcall.strip()
+    if rollcall and "discord" not in rollcall:
         await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
-
-    # Extraer IDs de miembros mencionados en 'members'
-    member_ids = MENTION_RE.findall(members)
+    member_ids = [int(mid) for mid in MENTION_RE.findall(members)]
     if not member_ids:
         await interaction.response.send_message("❌ No valid member mentions found in members.", ephemeral=True)
         return
-
     await log_command_use(interaction)
     await interaction.response.defer()
 
     guild = interaction.guild
     summary = []
-
+    members_objs = {m.id: m for m in guild.members if m.id in member_ids}
     for mid in member_ids:
-        member = guild.get_member(int(mid))
+        member = members_objs.get(mid)
         if member:
-            add_points(guild.id, member.id, "wp", 1)
             summary.append(f"{member.mention} +1 Wp")
         else:
             summary.append(f"User ID {mid} not found in guild.")
+    if members_objs:
+        add_points_batch(guild.id, list(members_objs.keys()), "wp", 1)
 
     embed = discord.Embed(
         title="War Points Added",
@@ -638,12 +628,11 @@ async def addwar(
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
-
-# ───────────── /addevent ─────────────
+# ───────────── /addeve ─────────────
 @bot.tree.command(name="addeve", description="Add Event Points (Eve) and Mission Points (MP) to multiple members")
 @app_commands.describe(
     members="Members to receive Event and Mission Points (only mentions allowed)",
-    rollcall="Roll-call message link (must start with https://discord.com)"
+    rollcall="Roll-call message link"
 )
 async def addeve(
     interaction: discord.Interaction,
@@ -654,12 +643,11 @@ async def addeve(
     if not has_basic_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
-    # Validar link rollcall
-    if not rollcall.strip().startswith("https://discord.com"):
-        await interaction.response.send_message("❌ Invalid roll-call link format.", ephemeral=True)
+    rollcall = rollcall.strip()
+    if rollcall and "discord" not in rollcall:
+        await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
-    # Extraer IDs de miembros mencionados en 'members'
-    member_ids = MENTION_RE.findall(members)
+    member_ids = [int(mid) for mid in MENTION_RE.findall(members)]
     if not member_ids:
         await interaction.response.send_message("❌ No valid member mentions found in members.", ephemeral=True)
         return
@@ -669,15 +657,18 @@ async def addeve(
 
     guild = interaction.guild
     summary = []
-
+    # Obtener todos los miembros válidos en batch
+    members_objs = {m.id: m for m in guild.members if m.id in member_ids}
     for mid in member_ids:
-        member = guild.get_member(int(mid))
+        member = members_objs.get(mid)
         if member:
-            add_points(guild.id, member.id, "eve", 1)
-            add_points(guild.id, member.id, "mp", 1)
             summary.append(f"{member.mention} +1 Eve, +1 MP")
         else:
             summary.append(f"User ID {mid} not found in guild.")
+    # Aplicar puntos en batch
+    if members_objs:
+        add_points_batch(guild.id, list(members_objs.keys()), "eve", 1)
+        add_points_batch(guild.id, list(members_objs.keys()), "mp", 1)
 
     embed = discord.Embed(
         title="Event and Mission Points Added",
@@ -733,7 +724,6 @@ async def addtier(
         with contextlib.suppress((discord.Forbidden, discord.NotFound)):
             await msg.delete()
         return
-
     # Eliminar Tiers anteriores (incluyendo estrellas)
     roles_to_remove = []
     for rid in tier_roles.values():
@@ -743,7 +733,6 @@ async def addtier(
 
     if roles_to_remove:
         await member.remove_roles(*roles_to_remove)
-
     # Añadir nuevo Tier
     new_tier_role = discord.utils.get(interaction.guild.roles, id=tier_role_id)
     added_roles = []
@@ -751,7 +740,6 @@ async def addtier(
     if new_tier_role:
         await member.add_roles(new_tier_role)
         added_roles.append(new_tier_role.mention)
-
     # Añadir estrella si procede
     if stars:
         star_label = "[ ⁑ ]" if stars == 2 else "[ ⁂ ]"
@@ -776,16 +764,25 @@ async def addtier(
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
+# ───────────── /tierList -updated ─────────────
+import asyncio
 
-# ───────────── /tierlist con paginación ─────────────
+tierlist_locks: dict[str, asyncio.Lock] = {}
+
 class TierListView(discord.ui.View):
     def __init__(self, pages: list[list[str]], invoker_pos: int | None, filter_name: str | None = None):
-        super().__init__(timeout=60)
+        super().__init__(timeout=180) 
         self.pages = pages
         self.current_page = 0
         self.invoker_pos = invoker_pos
         self.filter_name = filter_name
         self.message: discord.Message | None = None
+        self._lock: asyncio.Lock | None = None  # Lock por vista
+
+    async def _get_lock(self):
+        if not self._lock:
+            self._lock = tierlist_locks.setdefault(str(id(self)), asyncio.Lock())
+        return self._lock
 
     async def send_initial(self, interaction: discord.Interaction):
         embed = self.create_embed()
@@ -804,65 +801,68 @@ class TierListView(discord.ui.View):
             "Low-Tier": 0x837373,
         }
         color = tier_colors.get(self.filter_name, 0xffffff)
+        # Truncar líneas demasiado largas y embed < 6000 caracteres
+        page_content = []
+        for line in self.pages[self.current_page]:
+            if len(line) > 100:  # Limitar cada línea
+                line = line[:97] + "..."
+            page_content.append(line)
+        page_text = "\n".join(page_content)
+
         embed = discord.Embed(
-            title="",
-            description=(
-                "# 🏆 TIER LEADERBOARD\n"
-                f"{filter_text}\n"
-                "-# ─────────────────────────\n"
-                + "\n".join(self.pages[self.current_page])
-            ),
+            title="# 🏆 TIER LEADERBOARD",
+            description=f"{filter_text}\n-# ─────────────────────────\n{page_text}",
             color=color
         )
-        page_text = f"Page {self.current_page + 1}/{len(self.pages)}"
+        footer_text = f"Page {self.current_page + 1}/{len(self.pages)}"
         if self.invoker_pos:
-            embed.set_footer(text=f"Your position is: {self.invoker_pos}\n{page_text}")
+            embed.set_footer(text=f"Your position is: {self.invoker_pos}\n{footer_text}")
         else:
-            embed.set_footer(text=f"You have no Tier position.\n{page_text}")
+            embed.set_footer(text=f"You have no Tier position.\n{footer_text}")
         return embed
 
-    async def update(self):
-        if self.message:
-            embed = self.create_embed()
-            await self.message.edit(embed=embed, view=self)
+    async def update(self, interaction: discord.Interaction):
+        if not self.message:
+            return
+        embed = self.create_embed()
+        lock = await self._get_lock()
+        async with lock:
+            # Solo actualizar si hay cambio
+            if self.message.embeds and self.message.embeds[0].description == embed.description:
+                await interaction.response.defer()  # Evitar errores de "already responded"
+                return
+            await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="⏮️ First", style=discord.ButtonStyle.secondary)
     async def first(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_page = 0
-        await self.update()
-        await interaction.response.defer()
+        await self.update(interaction)
 
     @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.secondary)
     async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.current_page > 0:
             self.current_page -= 1
-            await self.update()
-        await interaction.response.defer()
+            await self.update(interaction)
 
     @discord.ui.button(label="Go to You", style=discord.ButtonStyle.success, emoji="🎯")
     async def go_to_you(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.invoker_pos is None:
             await interaction.response.send_message("You have no Tier position.", ephemeral=True)
             return
-
-        per_page = 15  # mismo valor que en la paginación
-        target_page = (self.invoker_pos - 1) // per_page
-        self.current_page = target_page
-        await self.update()
-        await interaction.response.defer()
+        per_page = 15
+        self.current_page = (self.invoker_pos - 1) // per_page
+        await self.update(interaction)
 
     @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
     async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.current_page < len(self.pages) - 1:
             self.current_page += 1
-            await self.update()
-        await interaction.response.defer()
+            await self.update(interaction)
 
     @discord.ui.button(label="⏭️ Last", style=discord.ButtonStyle.secondary)
     async def last(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_page = len(self.pages) - 1
-        await self.update()
-        await interaction.response.defer()
+        await self.update(interaction)
 
     async def on_timeout(self):
         if self.message:
@@ -883,7 +883,6 @@ class TierListView(discord.ui.View):
     app_commands.Choice(name="Low-Tier", value="Low-Tier"),
 ])
 async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[str] | None = None):
-    # Mostramos "Grayboty is thinking..." y extendemos tiempo a 15 minutos
     await interaction.response.defer(thinking=True)
 
     guild = interaction.guild
@@ -917,7 +916,6 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
                 return rank
         return None
 
-    # Recolectamos miembros con Tier (aplicando filtro si hay)
     members_with_tier = []
     for member in members:
         tier_name = get_member_tier(member)
@@ -949,7 +947,6 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
         rank_index(x[2])
     ))
 
-    # Posición del invocador
     invoker_pos = None
     invoker_id = interaction.user.id
     for i, (member, _, _) in enumerate(members_with_tier, start=1):
@@ -957,7 +954,6 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
             invoker_pos = i
             break
 
-    # Construimos líneas de la tabla
     lines = []
     for i, (member, tier_name, _) in enumerate(members_with_tier, start=1):
         base_tier = tier_name.split(" [")[0].strip()
@@ -972,13 +968,12 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
         else:
             line = f"{str(i).rjust(2)}. {emoji} {name} — {tier_name}"
         lines.append(line)
-    # Paginación
+
     per_page = 15
     pages = [lines[i:i + per_page] for i in range(0, len(lines), per_page)]
-    # Creamos la vista pasando filtro para mostrarlo en embed
+
     view = TierListView(pages=pages, invoker_pos=invoker_pos, filter_name=tier.value if tier else None)
     await view.send_initial(interaction)
-
 
 # ───────────── /deltp ─────────────
 @bot.tree.command(name="deltp", description="Remove Training Points from one or more members (Admin only)")
@@ -1135,27 +1130,23 @@ async def addall(
 
 
 # ───────────── Autorización de roles ─────────────
-# Roles con acceso a comandos básicos
 BASIC_ROLE_IDS = {
     1381235438563491841,  # LEADERSHIP
     1399751111602212884,  # Gray Council
     1381244026790871111,  # TGO | Staff
 }
-
-# Roles con acceso a todos los comandos (incluye avanzados)
 FULL_ROLE_IDS = {
     1381235438563491841,  # LEADERSHIP
-    1413828641397149716,  # Emetitus Emperor
     1399751111602212884,  # Gray Council
 }
-
-def has_basic_permission(member: discord.Member) -> bool:
-    return any(role.id in BASIC_ROLE_IDS for role in getattr(member, "roles", []))
-
-def has_full_permission(member: discord.Member) -> bool:
-    return any(role.id in FULL_ROLE_IDS for role in getattr(member, "roles", []))
+def has_permission(member: discord.Member, allowed_roles: set[int]) -> bool:
+    """Check if member has at least one role in allowed_roles."""
+    return any(role.id in allowed_roles for role in member.roles)
+has_basic_permission = lambda m: has_permission(m, BASIC_ROLE_IDS)
+has_full_permission = lambda m: has_permission(m, FULL_ROLE_IDS)
 
 # ───────────── Eventos ─────────────
+monitor_lock = threading.Lock()  # Lock global para reinicio
 @bot.event
 async def on_ready():
     print(f"🤖 Bot started as {bot.user} (ID: {bot.user.id}) — connected successfully.")
@@ -1170,59 +1161,64 @@ async def on_ready():
 
 # ───────────── Keep‑alive server ─────────────
 app = Flask(__name__)
-
 @app.route("/", methods=["GET", "HEAD"])
 def home():
     return "Bot is running!", 200
 
 def run_flask():
-    port = int(os.environ.get("PORT", 8080))  # Toma el puerto asignado o 8080 por defecto
+    port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port, debug=False)
-
 threading.Thread(target=run_flask, daemon=True).start()
 
-# ─────── Monitor Bot (check RAM & conexión) ────────
+# ─────── Monitor Bot Mejorado ────────
 def monitor_bot():
     print("⏳ Waiting 5 minutes before starting monitoring…", flush=True)
     time.sleep(300)  # Espera inicial 5 minutos
     process = psutil.Process(os.getpid())
     print("🛡️ RAM and connection monitor started.", flush=True)
+    
+    consecutive_high_mem = 0
+    consecutive_high_latency = 0
+    check_interval = 600  # 10 min entre chequeos
     while True:
         try:
             mem_mb = process.memory_info().rss / (1024 * 1024)
-            print(f"📦 Memory usage: {mem_mb:.2f} MB", flush=True)
-            if mem_mb >= 490:
-                print(f"⚠️ High memory usage detected: {mem_mb:.2f} MB. Restarting…", flush=True)
-                sys.exit(1)
-
             latency_ms = bot.latency * 1000
-            print(f"🌐 WebSocket latency: {latency_ms:.0f} ms", flush=True)
+            print(f"📦 Memory: {mem_mb:.2f} MB | 🌐 Latency: {latency_ms:.0f} ms", flush=True)
+            # Chequeo gradual para evitar reinicio por pico temporal
+            if mem_mb >= 490:
+                consecutive_high_mem += 1
+            else:
+                consecutive_high_mem = 0
             if latency_ms > 1000:
-                print(f"⚠️ High latency detected: {latency_ms:.0f} ms. Restarting…", flush=True)
-                sys.exit(1)
-
-            if bot.is_closed() or not bot.is_ready():
-                print("❌ Bot not ready. Restarting…", flush=True)
-                sys.exit(1)
-
+                consecutive_high_latency += 1
+            else:
+                consecutive_high_latency = 0
+            if consecutive_high_mem >= 2 or consecutive_high_latency >= 2 or bot.is_closed() or not bot.is_ready():
+                with monitor_lock:  # Solo un thread reiniciando
+                    print(f"⚠️ Restart triggered. Memory: {mem_mb:.2f}, Latency: {latency_ms:.0f} ms", flush=True)
+                    sys.exit(1)
             print("✅ Bot check passed.", flush=True)
-            time.sleep(600)  # Duerme 10 minutos antes del siguiente chequeo
+            time.sleep(check_interval)
         except Exception as e:
             print(f"❌ Error in monitor_bot: {e}", flush=True)
             time.sleep(10)
 
 # ───────────── Error Handler ─────────────
+logging.basicConfig(
+    filename="bot_errors.log",
+    level=logging.ERROR,
+    format="%(asctime)s | %(levelname)s | %(message)s"
+)
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     async def safe_send(msg: str):
         try:
-            # Si la interacción ya fue respondida o deferida, usar followup
             if interaction.response.is_done():
                 await interaction.followup.send(msg, ephemeral=True)
             else:
                 await interaction.response.send_message(msg, ephemeral=True)
         except (discord.NotFound, discord.HTTPException):
-            # La interacción ya expiró o hubo un problema de red → ignorar
             pass
     if isinstance(error, app_commands.MissingPermissions):
         await safe_send("❌ You lack permission to do that.")
@@ -1231,15 +1227,13 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
     elif isinstance(error, app_commands.CheckFailure):
         await safe_send("❌ You don't meet the command requirements.")
     else:
-        # Registrar en consola en lugar de relanzar
-        print(f"Unexpected error in command: {error}")
+        logging.error("Unexpected error:\n%s", traceback.format_exc())
         await safe_send("⚠️ An unexpected error occurred.")
 
 # ───────────── Run bot ─────────────
 TOKEN = os.getenv("DISCORD_TOKEN")
 if not TOKEN:
     raise RuntimeError("Environment variable DISCORD_TOKEN not set.")
-
 try:
     bot.run(TOKEN)
 except Exception as e:
@@ -1247,7 +1241,3 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
-
-
-
-
