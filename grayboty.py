@@ -458,7 +458,7 @@ async def log_command_use(interaction: discord.Interaction):
     mvp="Mentions for MVP (+3 each)",
     promo="Mentions for Promo (+2 each)",
     attended="Mentions for Attendance (+1 each)",
-    rollcall="Roll‑call message link",
+    rollcall="Roll-call message link",
 )
 async def addtp(
     interaction: discord.Interaction,
@@ -468,41 +468,40 @@ async def addtp(
     attended: str = "",
 ):
     caller = cast(discord.Member, interaction.user)
-
     if not has_basic_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
     rollcall = rollcall.strip()
     if rollcall and "discord" not in rollcall:
-        await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
+        await interaction.response.send_message("❌ Invalid roll-call link format.", ephemeral=True)
         return
     await log_command_use(interaction)
     await interaction.response.defer()
     guild = interaction.guild
-    # Añadir +1 TP al ejecutor si tiene permiso (internamente, no visible en embed)
+    # Añadir +1 TP al ejecutor (interno)
     add_points(guild.id, caller.id, "tp", 1)
 
     embed_description = [f"{caller.mention} has added training points to:"]
     any_valid_mentions = False
-    # Preparamos un diccionario por cantidad de TP para batch
-    batch_additions: dict[int, list[int]] = {}  # {points: [member_id,...]}
+    # Batch sin anotación problemática
+    batch_additions = {}  # {points: [member_id, ...]}
 
     for cat, text in {"mvp": mvp, "promo": promo, "attended": attended}.items():
         pts_to_add = POINT_VALUES.get(cat, 0)
         if pts_to_add <= 0:
             continue
+
         for uid in MENTION_RE.findall(text):
             member = guild.get_member(int(uid))
             if member is not None:
                 any_valid_mentions = True
                 batch_additions.setdefault(pts_to_add, []).append(member.id)
-                embed_description.append(f"{member.mention} +{pts_to_add} TP")
+                embed_description.append(f"{member.mention} +{pts_to_add} TP")
     if not any_valid_mentions:
         await interaction.followup.send("ℹ️ No valid member mentions found.")
         return
-
     for pts, member_ids in batch_additions.items():
-        add_points_batch(guild.id, member_ids, "tp", pts)  # batch
+        add_points_batch(guild.id, member_ids, "tp", pts)
     if rollcall:
         embed_description.append(f"\n🔗 Rollcall: {rollcall}")
     embed = discord.Embed(
@@ -514,6 +513,7 @@ async def addtp(
     await asyncio.sleep(20)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
+
 
 # ───────────── /addmp ─────────────
 @bot.tree.command(name="addmp", description="Add Mission Points to a member")
@@ -574,7 +574,7 @@ async def addra(
     interaction: discord.Interaction,
     members: str,
     rollcall: str,
-    extra: str | None = None,
+    extra: str = "",
 ):
     caller = cast(discord.Member, interaction.user)
     if not has_basic_permission(caller):
@@ -584,37 +584,35 @@ async def addra(
     if rollcall and "discord" not in rollcall:
         await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
-    member_ids = [int(mid) for mid in MENTION_RE.findall(members)]
+    member_ids = MENTION_RE.findall(members)
     if not member_ids:
         await interaction.response.send_message("❌ No valid member mentions found in members.", ephemeral=True)
         return
-    extra_ids = [int(eid) for eid in MENTION_RE.findall(extra)] if extra else []
+    extra_ids = MENTION_RE.findall(extra) if extra else []
+
     await log_command_use(interaction)
     await interaction.response.defer()
 
     guild = interaction.guild
     summary = []
-    # BATCH: obtener todos los miembros de members
-    members_objs = {m.id: m for m in guild.members if m.id in member_ids}
+    # Añadir Rp +1 a cada miembro
     for mid in member_ids:
-        member = members_objs.get(mid)
+        member = guild.get_member(int(mid))
         if member:
+            add_points(guild.id, member.id, "rp", 1)
             summary.append(f"{member.mention} +1 Rp")
         else:
             summary.append(f"User ID {mid} not found in guild.")
-    # Llamada a DB en batch
-    add_points_batch(guild.id, list(members_objs.keys()), "rp", 1)
-    # BATCH: extra MPs
-    extra_objs = {m.id: m for m in guild.members if m.id in extra_ids}
-    for eid in extra_ids:
-        extra_member = extra_objs.get(eid)
-        if extra_member:
-            summary.append(f"{extra_member.mention} +1 Mp (extra)")
-        else:
-            summary.append(f"User ID {eid} not found in guild.")
-    if extra_objs:
-        add_points_batch(guild.id, list(extra_objs.keys()), "mp", 1)
-    # Crear embed con lista de participantes y rollcall
+    # Añadir Mp +1 a extra
+    if extra_ids:
+        for eid in extra_ids:
+            extra_member = guild.get_member(int(eid))
+            if extra_member:
+                add_points(guild.id, extra_member.id, "mp", 1)
+                summary.append(f"{extra_member.mention} +1 Mp (extra)")
+            else:
+                summary.append(f"User ID {eid} not found in guild.")
+    # Crear embed
     embed = discord.Embed(
         title="Raid Points Added",
         description="\n".join(summary) + (f"\n🔗 {rollcall}" if rollcall else ""),
@@ -644,7 +642,7 @@ async def addwar(
     if rollcall and "discord" not in rollcall:
         await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
-    member_ids = [int(mid) for mid in MENTION_RE.findall(members)]
+    member_ids = MENTION_RE.findall(members)
     if not member_ids:
         await interaction.response.send_message("❌ No valid member mentions found in members.", ephemeral=True)
         return
@@ -653,16 +651,15 @@ async def addwar(
 
     guild = interaction.guild
     summary = []
-    members_objs = {m.id: m for m in guild.members if m.id in member_ids}
+    # Añadir +1 Wp individualmente, más confiable que batch
     for mid in member_ids:
-        member = members_objs.get(mid)
+        member = guild.get_member(int(mid))
         if member:
+            add_points(guild.id, member.id, "wp", 1)
             summary.append(f"{member.mention} +1 Wp")
         else:
             summary.append(f"User ID {mid} not found in guild.")
-    if members_objs:
-        add_points_batch(guild.id, list(members_objs.keys()), "wp", 1)
-
+    # Crear embed
     embed = discord.Embed(
         title="War Points Added",
         description="\n".join(summary) + (f"\n🔗 {rollcall}" if rollcall else ""),
@@ -677,7 +674,7 @@ async def addwar(
 @bot.tree.command(name="addeve", description="Add Event Points (Eve) and Mission Points (MP) to multiple members")
 @app_commands.describe(
     members="Members to receive Event and Mission Points (only mentions allowed)",
-    rollcall="Roll-call message link"
+    rollcall="Roll-call message link (must start with https://discord.com)"
 )
 async def addeve(
     interaction: discord.Interaction,
@@ -688,11 +685,13 @@ async def addeve(
     if not has_basic_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
+    # Validar link rollcall
     rollcall = rollcall.strip()
-    if rollcall and "discord" not in rollcall:
-        await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
+    if not rollcall.startswith("https://discord.com"):
+        await interaction.response.send_message("❌ Invalid roll-call link format.", ephemeral=True)
         return
-    member_ids = [int(mid) for mid in MENTION_RE.findall(members)]
+    # Extraer IDs de miembros mencionados en 'members'
+    member_ids = MENTION_RE.findall(members)
     if not member_ids:
         await interaction.response.send_message("❌ No valid member mentions found in members.", ephemeral=True)
         return
@@ -702,19 +701,16 @@ async def addeve(
 
     guild = interaction.guild
     summary = []
-    # Obtener todos los miembros válidos en batch
-    members_objs = {m.id: m for m in guild.members if m.id in member_ids}
+    # Añadir Eve +1 y MP +1 individualmente
     for mid in member_ids:
-        member = members_objs.get(mid)
+        member = guild.get_member(int(mid))
         if member:
+            add_points(guild.id, member.id, "eve", 1)
+            add_points(guild.id, member.id, "mp", 1)
             summary.append(f"{member.mention} +1 Eve, +1 MP")
         else:
             summary.append(f"User ID {mid} not found in guild.")
-    # Aplicar puntos en batch
-    if members_objs:
-        add_points_batch(guild.id, list(members_objs.keys()), "eve", 1)
-        add_points_batch(guild.id, list(members_objs.keys()), "mp", 1)
-
+    # Crear embed
     embed = discord.Embed(
         title="Event and Mission Points Added",
         description="\n".join(summary) + (f"\n🔗 {rollcall}" if rollcall else ""),
@@ -1291,5 +1287,6 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
