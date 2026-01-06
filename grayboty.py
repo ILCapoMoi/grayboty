@@ -198,167 +198,217 @@ group_ranks_order = [
     "Initiate",
 ]
 
+# ───────────── /SHOWPROFILE ─────────────
 @bot.tree.command(name="showprofile", description="Show Training & Mission Points")
 @app_commands.describe(member="Member to view; leave empty for yourself")
 async def showprofile(interaction: discord.Interaction, member: discord.Member | None = None):
 
-    try:
-        if not interaction.response.is_done():
-            await interaction.response.defer(thinking=True)
-
-        if member is None:
-            member = interaction.user
-
-        doc = points_collection.find_one({
-            "guild_id": interaction.guild.id,
-            "user_id": member.id
-        }) or {}
-
-        tp = doc.get("tp", 0)
-        mp = doc.get("mp", 0)
-        rp = doc.get("rp", 0)
-        wp = doc.get("wp", 0)
-
-        if tp == 0 and mp == 0 and rp == 0 and wp == 0:
-            safe_name = member.display_name.replace("_", "\\_")
-            msg = await interaction.followup.send(
-                f"_**{safe_name}** has not yet woven their story into this place._"
-            )
-            await asyncio.sleep(15)
-            with contextlib.suppress(discord.NotFound, discord.Forbidden):
-                await msg.delete()
-            return
-
-        highest_rank_raw = get_highest_rank(member)
-        current_rank = highest_rank_raw.split("|")[-1].strip() if highest_rank_raw else "Initiate"
-
-        embed = discord.Embed(
-            title=member.display_name,
-            color=discord.Color.from_rgb(247, 240, 172)
+    if not interaction.guild:
+        await interaction.response.send_message(
+            "This command can only be used inside a server.",
+            ephemeral=True
         )
-        embed.set_thumbnail(url=member.display_avatar.url)
+        return
 
-        embed.add_field(name="**Training Points**", value=tp, inline=True)
-        embed.add_field(name="**Mission Points**", value=mp, inline=True)
-        embed.add_field(name="\u200b", value="\u200b", inline=True)
-        embed.add_field(name="**War Points**", value=wp, inline=True)
-        embed.add_field(name="**Raid Points**", value=rp, inline=True)
-        embed.add_field(name="\u200b", value="\u200b", inline=True)
+    if not interaction.response.is_done():
+        await interaction.response.defer(thinking=True)
 
+    if member is None:
+        member = interaction.user
+
+    doc = points_collection.find_one({
+        "guild_id": interaction.guild.id,
+        "user_id": member.id
+    })
+
+    if not doc or all(doc.get(k, 0) == 0 for k in ("tp", "mp", "rp", "wp")):
+        safe_name = member.display_name.replace("_", "\\_")
+        msg = await interaction.followup.send(
+            f"_**{safe_name}** has not yet woven their story into this place._"
+        )
+        await asyncio.sleep(15)
+        with contextlib.suppress(discord.Forbidden, discord.NotFound):
+            await msg.delete()
+        return
+
+    highest_rank_raw = get_highest_rank(member)
+    current_rank = (
+        highest_rank_raw.split("|")[-1].strip()
+        if highest_rank_raw and "|" in highest_rank_raw
+        else highest_rank_raw
+    )
+
+    embed = discord.Embed(
+        title=f"{member.display_name}",
+        color=discord.Color.from_rgb(247, 240, 172)
+    )
+    embed.set_thumbnail(url=member.display_avatar.url)
+
+    embed.add_field(name="**Training Points**", value=doc.get("tp", 0), inline=True)
+    embed.add_field(name="**Mission Points**", value=doc.get("mp", 0), inline=True)
+    embed.add_field(name="\u200b", value="\u200b", inline=True)
+    embed.add_field(name="**War Points**", value=doc.get("wp", 0), inline=True)
+    embed.add_field(name="**Raid Points**", value=doc.get("rp", 0), inline=True)
+    embed.add_field(name="\u200b", value="\u200b", inline=True)
+
+    embed.add_field(
+        name="",
+        value="<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209>"
+              "<:R1Laser:1395746456681578628><:R1Laser:1395746456681578628>"
+              "<:R1Laser:1395746456681578628><:R1Laser:1395746456681578628>"
+              "<:R2Laser:1395746474293198949> "
+              "<:M2LaserInv:1395909504482283750><:M1Laser:1395909456986112110>"
+              "<:M1Laser:1395909456986112110><:M1Laser:1395909456986112110>"
+              "<:M1Laser:1395909456986112110><:H2LaserInv:1395909361494396948>"
+              "<:H1LaserInv:1395909332339790065>",
+        inline=False
+    )
+    # Medallas
+    glory_emoji = "<:Glory:1401695802660749362>"
+    user_medals_full = []
+
+    LEADER = 1419415839471304856
+
+    if discord.utils.get(member.roles, id=LEADER):
+        user_medals_full = list(medal_roles.values())
+    else:
+        for role_id, emoji in medal_roles.items():
+            if discord.utils.get(member.roles, id=role_id):
+                user_medals_full.append(emoji)
+            else:
+                user_medals_full.append(glory_emoji)
+
+    embed.add_field(
+        name="**Medals of honor**",
+        value=" {} ".format(" ┃ ".join(user_medals_full)),
+        inline=False
+    )
+    # Retired roles
+    retired_roles = [
+        {
+            "id": 1413828641397149716,
+            "name": "Emeritus Emperor",
+            "subtitle": "\u200b",
+            "emoji": "<:RetiredTGO:1429142210301005904>",
+            "text": "Once crowned, forever eternal."
+        },
+        {
+            "id": 1413829540987277332,
+            "name": "Elder of Council",
+            "subtitle": "\u200b",
+            "emoji": "<:RetiredCo:1413856505987596380>",
+            "text": "Their wisdom echoes in every council hall."
+        },
+        {
+            "id": 1381562883803971605,
+            "name": "Retired",
+            "subtitle": "\u200b",
+            "emoji": "<:RetiredHR:1413856468595114056>",
+            "text": "Their honor endures beyond their service."
+        }
+    ]
+
+    retired_detected = None
+    for role in retired_roles:
+        if discord.utils.get(member.roles, id=role["id"]):
+            retired_detected = role
+            break
+
+    if retired_detected:
         embed.add_field(
-            name="",
-            value=(
-                "<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209>"
-                "<:R1Laser:1395746456681578628><:R1Laser:1395746456681578628>"
-                "<:R1Laser:1395746456681578628><:R1Laser:1395746456681578628>"
-                "<:R2Laser:1395746474293198949> "
-                "<:M2LaserInv:1395909504482283750><:M1Laser:1395909456986112110>"
-                "<:M1Laser:1395909456986112110><:M1Laser:1395909456986112110>"
-                "<:M1Laser:1395909456986112110><:H2LaserInv:1395909361494396948>"
-                "<:H1LaserInv:1395909332339790065>"
-            ),
+            name="**Rank**",
+            value=f"{retired_detected['emoji']} {retired_detected['name']}\n-# _{retired_detected['subtitle']}_",
             inline=False
         )
-
-        # ───── Medals ─────
-        glory_emoji = "<:Glory:1401695802660749362>"
-        medals = []
-
-        LEADER = 1419415839471304856
-        if discord.utils.get(member.roles, id=LEADER):
-            medals = list(medal_roles.values())
-        else:
-            for role_id, emoji in medal_roles.items():
-                medals.append(emoji if discord.utils.get(member.roles, id=role_id) else glory_emoji)
-
-        embed.add_field(
-            name="**Medals of honor**",
-            value=" ┃ ".join(medals),
-            inline=False
-        )
-
-        # ───── Rank ─────
+    else:
         embed.add_field(
             name="**Rank**",
             value=f"{rank_emojis.get(current_rank, '')} | {current_rank}",
             inline=False
         )
+    # Level-Tier
+    member_role_ids = [role.id for role in member.roles]
+    level_tier = None
+    stars = ""
 
-        # ───── Level-Tier ─────
-        role_ids = {r.id for r in member.roles}
-        level_tier = None
-        stars = ""
+    for base in [
+        "✩ Legend-Tier", "★ Ashenlight-Tier", "Celestial-Tier",
+        "Elite-Tier", "High-Tier", "Middle-Tier", "Low-Tier"
+    ]:
+        if tier_roles.get(base) in member_role_ids:
+            level_tier = base
+            break
 
-        for base in [
-            "✩ Legend-Tier", "★ Ashenlight-Tier", "Celestial-Tier",
-            "Elite-Tier", "High-Tier", "Middle-Tier", "Low-Tier"
-        ]:
-            if tier_roles.get(base) in role_ids:
-                level_tier = base
-                break
-
-        if level_tier:
-            if tier_roles.get("[ ⁂ ]") in role_ids:
-                stars = " [ ⁂ ]"
-            elif tier_roles.get("[ ⁑ ]") in role_ids:
-                stars = " [ ⁑ ]"
-
-            embed.add_field(
-                name="**Level-Tier**",
-                value=f"{tier_emojis.get(level_tier, '')} {level_tier}{stars}",
-                inline=False
-            )
-
-        # ───── Promotion logic ─────
-        if current_rank in ["Gray Lord", "Ashen Lord"]:
-            embed.add_field(
-                name="",
-                value="> You are part of the TGO council",
-                inline=False
-            )
-        elif current_rank in [
-            "Silver Knight", "Master - On trial",
-            "Grandmaster", "Master of Balance"
-        ]:
-            embed.add_field(
-                name="",
-                value="From this rank onwards, promotions are decided by HR.",
-                inline=False
-            )
-        else:
-            if current_rank in rank_list:
-                idx = rank_list.index(current_rank)
-                if idx + 1 < len(rank_list):
-                    next_rank = rank_list[idx + 1]
-                    req = rank_requirements.get(next_rank)
-                    if req:
-                        text = (
-                            f"**Next rank**\n"
-                            f"{rank_emojis.get(next_rank, '')} | {next_rank}\n"
-                            f"· **{req.get('tp', 0)}** TP\n"
-                            f"· **{req.get('mp', 0)}** MP"
-                        )
-                        if req.get("tier"):
-                            text += f"\n· **{req['tier']}** Level-Tier"
-                        embed.add_field(name="", value=text, inline=False)
+    if level_tier:
+        if tier_roles.get("[ ⁂ ]") in member_role_ids:
+            stars = " [ ⁂ ]"
+        elif tier_roles.get("[ ⁑ ]") in member_role_ids:
+            stars = " [ ⁑ ]"
 
         embed.add_field(
+            name="**Level-Tier**",
+            value=f"{tier_emojis.get(level_tier, '')} {level_tier}{stars}",
+            inline=False
+        )
+    # Texto final narrativo (INTACTO)
+    if retired_detected:
+        embed.add_field(name="", value=f"> {retired_detected['text']}", inline=False)
+
+    elif current_rank == "Elder Gray Emperor":
+        embed.add_field(
             name="",
-            value="-# <:OficialTGO:1395904116072648764> The Gray Order",
+            value="> Founder, Owner and Emperor of The Grey Order",
             inline=False
         )
 
-        msg = await interaction.followup.send(embed=embed)
-        await asyncio.sleep(30)
-        with contextlib.suppress(discord.NotFound, discord.Forbidden):
-            await msg.delete()
-
-    except Exception:
-        logging.error("showprofile error:\n%s", traceback.format_exc())
-        await interaction.followup.send(
-            "⚠️ An unexpected error occurred while loading this profile.",
-            ephemeral=True
+    elif current_rank == "Gray Emperor":
+        embed.add_field(
+            name="",
+            value="> Leader and Emperor of the Grey Order",
+            inline=False
         )
+
+    elif current_rank in ["Gray Lord", "Ashen Lord"]:
+        embed.add_field(
+            name="",
+            value="> Part of the council of The Grey Order",
+            inline=False
+        )
+
+    elif current_rank in ["Silver Knight", "Master - On trial", "Grandmaster", "Master of Balance"]:
+        embed.add_field(
+            name="",
+            value="From this rank onwards, promotions are decided by HR.",
+            inline=False
+        )
+
+    else:
+        if current_rank in rank_list:
+            idx = rank_list.index(current_rank)
+            if idx + 1 < len(rank_list):
+                next_rank = rank_list[idx + 1]
+                if next_rank in rank_requirements:
+                    req = rank_requirements[next_rank]
+                    req_text = (
+                        f"**Next rank**\n{rank_emojis.get(next_rank, '')} | {next_rank}\n"
+                        f"· _**{req.get('tp', 0)}** training points_\n"
+                        f"· _**{req.get('mp', 0)}** mission points_"
+                    )
+                    if req.get("tier"):
+                        req_text += f"\n· _**{req['tier']}** level_"
+                    embed.add_field(name="", value=req_text, inline=False)
+
+    embed.add_field(
+        name="",
+        value="-# <:OficialTGO:1395904116072648764> The Gray Order",
+        inline=False
+    )
+
+    msg = await interaction.followup.send(embed=embed)
+
+    await asyncio.sleep(30)
+    with contextlib.suppress(discord.Forbidden, discord.NotFound):
+        await msg.delete()
 
 # ───────────── /LOGS ─────────────
 LOG_CHANNEL_ID = 1398432802281750639  # Hidden channel for logs
@@ -1241,4 +1291,5 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
