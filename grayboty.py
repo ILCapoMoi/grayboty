@@ -107,7 +107,7 @@ async def on_app_command_error(
 # ───────────── RANK SYSTEM ─────────────
 rank_list = [
     "Initiate", "Acolyte", "Disciple", "Seeker", "Knight", "Gray Knight",
-    "Silver Knight", "Master - On trial", "Grandmaster", "Master of Balance",
+    "Silver Knight", "Master", "Grandmaster", "Master of Balance",
     "Gray Lord", "Ashen Lord", "Gray Emperor", "Elder Gray Emperor"
 ]
 rank_emojis = {
@@ -118,7 +118,7 @@ rank_emojis = {
     "Knight": "<:Knight:1384844814104789032>",
     "Gray Knight": "<:GrayKnight:1384844842361815111>",
     "Silver Knight": "<:SilverKnight:1384874305363513425>",
-    "Master - On trial": "<:trial_master:1390000479970263100>",
+    "Master": "<:trial_master:1390000479970263100>",
     "Grandmaster": "<:grm:1384494486222147654>",
     "Master of Balance": "<:Mbalance:1384835972813820057>",
     "Gray Lord": "<:GrayLord:1395372415856410686>",
@@ -188,7 +188,7 @@ group_ranks_order = [
     "Gray Lord",
     "Master of Balance",
     "Grandmaster",
-    "Master - On trial",
+    "Master",
     "Silver Knight",
     "Gray Knight",
     "Knight",
@@ -375,7 +375,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
             inline=False
         )
 
-    elif current_rank in ["Silver Knight", "Master - On trial", "Grandmaster", "Master of Balance"]:
+    elif current_rank in ["Silver Knight", "Master", "Grandmaster", "Master of Balance"]:
         embed.add_field(
             name="",
             value="From this rank onwards, promotions are decided by HR.",
@@ -1289,6 +1289,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
