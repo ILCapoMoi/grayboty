@@ -458,7 +458,7 @@ async def log_command_use(interaction: discord.Interaction):
     mvp="Mentions for MVP (+3 each)",
     promo="Mentions for Promo (+2 each)",
     attended="Mentions for Attendance (+1 each)",
-    rollcall="Roll-call message link",
+    rollcall="Roll‑call message link",
 )
 async def addtp(
     interaction: discord.Interaction,
@@ -468,42 +468,45 @@ async def addtp(
     attended: str = "",
 ):
     caller = cast(discord.Member, interaction.user)
+
     if not has_basic_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
+
     rollcall = rollcall.strip()
     if rollcall and "discord" not in rollcall:
-        await interaction.response.send_message("❌ Invalid roll-call link format.", ephemeral=True)
+        await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
+
     await log_command_use(interaction)
     await interaction.response.defer()
+
     guild = interaction.guild
-    # Añadir +1 TP al ejecutor (interno)
+    # Añadir +1 TP al ejecutor si tiene permiso (internamente, no visible en embed)
     add_points(guild.id, caller.id, "tp", 1)
 
+    # Construir la descripción del embed
     embed_description = [f"{caller.mention} has added training points to:"]
     any_valid_mentions = False
-    # Batch sin anotación problemática
-    batch_additions = {}  # {points: [member_id, ...]}
 
     for cat, text in {"mvp": mvp, "promo": promo, "attended": attended}.items():
         pts_to_add = POINT_VALUES.get(cat, 0)
         if pts_to_add <= 0:
             continue
-
         for uid in MENTION_RE.findall(text):
             member = guild.get_member(int(uid))
             if member is not None:
                 any_valid_mentions = True
-                batch_additions.setdefault(pts_to_add, []).append(member.id)
-                embed_description.append(f"{member.mention} +{pts_to_add} TP")
+                add_points(guild.id, member.id, "tp", pts_to_add)
+                embed_description.append(f"{member.mention} +{pts_to_add} TP")
+
     if not any_valid_mentions:
         await interaction.followup.send("ℹ️ No valid member mentions found.")
         return
-    for pts, member_ids in batch_additions.items():
-        add_points_batch(guild.id, member_ids, "tp", pts)
+
     if rollcall:
         embed_description.append(f"\n🔗 Rollcall: {rollcall}")
+
     embed = discord.Embed(
         title="Training Points Added",
         description="\n".join(embed_description),
@@ -513,7 +516,6 @@ async def addtp(
     await asyncio.sleep(20)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
-
 
 # ───────────── /addmp ─────────────
 @bot.tree.command(name="addmp", description="Add Mission Points to a member")
@@ -1287,6 +1289,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
