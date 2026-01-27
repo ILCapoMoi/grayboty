@@ -452,7 +452,7 @@ async def log_command_use(interaction: discord.Interaction):
         except Exception:
             pass  # Silenciar cualquier error al enviar logs
 
-# ───────────── /addtp ─────────────
+# ───────────── /addtp optimizado ─────────────
 @bot.tree.command(name="addtp", description="Add Training Points with automatic weighting")
 @app_commands.describe(
     mvp="Mentions for MVP (+3 each)",
@@ -478,27 +478,36 @@ async def addtp(
         await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
 
-    await log_command_use(interaction)
     await interaction.response.defer()
-
     guild = interaction.guild
-    # Añadir +1 TP al ejecutor si tiene permiso (internamente, no visible en embed)
-    add_points(guild.id, caller.id, "tp", 1)
 
-    # Construir la descripción del embed
+    add_points(guild.id, caller.id, "tp", 1)  # +1 TP al ejecutor
     embed_description = [f"{caller.mention} has added training points to:"]
     any_valid_mentions = False
 
+    # Preparar lista de miembros con sus puntos
+    all_members = []
     for cat, text in {"mvp": mvp, "promo": promo, "attended": attended}.items():
         pts_to_add = POINT_VALUES.get(cat, 0)
         if pts_to_add <= 0:
             continue
         for uid in MENTION_RE.findall(text):
-            member = guild.get_member(int(uid))
-            if member is not None:
-                any_valid_mentions = True
-                add_points(guild.id, member.id, "tp", pts_to_add)
-                embed_description.append(f"{member.mention} +{pts_to_add} TP")
+            all_members.append((int(uid), pts_to_add))
+
+    # Procesar en lotes de 10 con pausa
+    for i, (uid, pts) in enumerate(all_members, start=1):
+        member = guild.get_member(uid)
+        if not member:
+            try:
+                member = await guild.fetch_member(uid)
+            except discord.NotFound:
+                member = None
+        if member:
+            any_valid_mentions = True
+            add_points(guild.id, member.id, "tp", pts)
+            embed_description.append(f"{member.mention} +{pts} TP")
+        if i % 10 == 0:
+            await asyncio.sleep(0.2)  # pausa cada 10 miembros
 
     if not any_valid_mentions:
         await interaction.followup.send("ℹ️ No valid member mentions found.")
@@ -506,6 +515,8 @@ async def addtp(
 
     if rollcall:
         embed_description.append(f"\n🔗 Rollcall: {rollcall}")
+
+    await log_command_use(interaction)
 
     embed = discord.Embed(
         title="Training Points Added",
@@ -565,7 +576,7 @@ async def addmp(
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
        
-# ───────────── /addra ─────────────
+# ───────────── /addra optimizado ─────────────
 @bot.tree.command(name="addra", description="Add Raid Points (Rp) and Mission Points (Mp)")
 @app_commands.describe(
     members="Members to receive Raid Points",
@@ -586,38 +597,45 @@ async def addra(
     if rollcall and "discord" not in rollcall:
         await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
-    member_ids = MENTION_RE.findall(members)
-    if not member_ids:
-        await interaction.response.send_message("❌ No valid member mentions found in members.", ephemeral=True)
+    member_ids = [int(uid) for uid in MENTION_RE.findall(members)]
+    extra_ids = [int(uid) for uid in MENTION_RE.findall(extra)] if extra else []
+
+    if not member_ids and not extra_ids:
+        await interaction.response.send_message("❌ No valid member mentions found.", ephemeral=True)
         return
-    extra_ids = MENTION_RE.findall(extra) if extra else []
 
-    await log_command_use(interaction)
     await interaction.response.defer()
-
     guild = interaction.guild
     summary = []
-    # Añadir Rp +1 a cada miembro
-    for mid in member_ids:
-        member = guild.get_member(int(mid))
+    # Combinar miembros de Rp y Mp extra para procesar en lotes
+    all_members = [(mid, "rp") for mid in member_ids] + [(eid, "mp_extra") for eid in extra_ids]
+
+    for i, (uid, cat) in enumerate(all_members, start=1):
+        member = guild.get_member(uid)
+        if not member:
+            try:
+                member = await guild.fetch_member(uid)
+            except discord.NotFound:
+                member = None
         if member:
-            add_points(guild.id, member.id, "rp", 1)
-            summary.append(f"{member.mention} +1 Rp")
+            if cat == "rp":
+                add_points(guild.id, member.id, "rp", 1)
+                summary.append(f"{member.mention} +1 Rp")
+            elif cat == "mp_extra":
+                add_points(guild.id, member.id, "mp", 1)
+                summary.append(f"{member.mention} +1 Mp (extra)")
         else:
-            summary.append(f"User ID {mid} not found in guild.")
-    # Añadir Mp +1 a extra
-    if extra_ids:
-        for eid in extra_ids:
-            extra_member = guild.get_member(int(eid))
-            if extra_member:
-                add_points(guild.id, extra_member.id, "mp", 1)
-                summary.append(f"{extra_member.mention} +1 Mp (extra)")
-            else:
-                summary.append(f"User ID {eid} not found in guild.")
-    # Crear embed
+            summary.append(f"User ID {uid} not found in guild.")
+        if i % 10 == 0:
+            await asyncio.sleep(0.2)  # pausa cada 10 miembros
+    if rollcall:
+        summary.append(f"\n🔗 {rollcall}")
+
+    await log_command_use(interaction)
+
     embed = discord.Embed(
         title="Raid Points Added",
-        description="\n".join(summary) + (f"\n🔗 {rollcall}" if rollcall else ""),
+        description="\n".join(summary),
         color=discord.Color.dark_gold()
     )
     msg = await interaction.followup.send(embed=embed)
@@ -625,13 +643,71 @@ async def addra(
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
-# ───────────── /addwar ─────────────
+
+# ───────────── /addwar optimizado ─────────────
 @bot.tree.command(name="addwar", description="Add War Points (Wp) to multiple members")
 @app_commands.describe(
     members="Members to receive War Points",
     rollcall="Roll‑call message link",
 )
-async def addwar(
+async def addwar(interaction: discord.Interaction, members: str, rollcall: str):
+    caller = cast(discord.Member, interaction.user)
+    if not has_basic_permission(caller):
+        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
+        return
+
+    rollcall = rollcall.strip()
+    if rollcall and "discord" not in rollcall:
+        await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
+        return
+
+    member_ids = [int(uid) for uid in MENTION_RE.findall(members)]
+    if not member_ids:
+        await interaction.response.send_message("❌ No valid member mentions found.", ephemeral=True)
+        return
+
+    await interaction.response.defer()
+    guild = interaction.guild
+    summary = []
+
+    for i, uid in enumerate(member_ids, start=1):
+        member = guild.get_member(uid)
+        if not member:
+            try:
+                member = await guild.fetch_member(uid)
+            except discord.NotFound:
+                member = None
+        if member:
+            add_points(guild.id, member.id, "wp", 1)
+            summary.append(f"{member.mention} +1 Wp")
+        else:
+            summary.append(f"User ID {uid} not found in guild.")
+
+        if i % 10 == 0:
+            await asyncio.sleep(0.2)  # pausa cada 10 miembros
+
+    if rollcall:
+        summary.append(f"\n🔗 {rollcall}")
+
+    await log_command_use(interaction)
+
+    embed = discord.Embed(
+        title="War Points Added",
+        description="\n".join(summary),
+        color=discord.Color.purple()
+    )
+    msg = await interaction.followup.send(embed=embed)
+    await asyncio.sleep(20)
+    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
+        await msg.delete()
+
+# ───────────── /addeve optimizado ─────────────
+@bot.tree.command(name="addeve", description="Add Event Points (Eve) and Mission Points (MP) to multiple members")
+@app_commands.describe(
+    members="Members to receive Event Points",
+    rollcall="Roll‑call message link"
+)
+async def addeve(
     interaction: discord.Interaction,
     members: str,
     rollcall: str,
@@ -644,78 +720,39 @@ async def addwar(
     if rollcall and "discord" not in rollcall:
         await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
-    member_ids = MENTION_RE.findall(members)
+    member_ids = [int(uid) for uid in MENTION_RE.findall(members)]
     if not member_ids:
-        await interaction.response.send_message("❌ No valid member mentions found in members.", ephemeral=True)
+        await interaction.response.send_message("❌ No valid member mentions found.", ephemeral=True)
         return
-    await log_command_use(interaction)
     await interaction.response.defer()
-
     guild = interaction.guild
     summary = []
-    # Añadir +1 Wp individualmente, más confiable que batch
-    for mid in member_ids:
-        member = guild.get_member(int(mid))
-        if member:
-            add_points(guild.id, member.id, "wp", 1)
-            summary.append(f"{member.mention} +1 Wp")
-        else:
-            summary.append(f"User ID {mid} not found in guild.")
-    # Crear embed
-    embed = discord.Embed(
-        title="War Points Added",
-        description="\n".join(summary) + (f"\n🔗 {rollcall}" if rollcall else ""),
-        color=discord.Color.purple()
-    )
-    msg = await interaction.followup.send(embed=embed)
-    await asyncio.sleep(20)
-    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
-        await msg.delete()
 
-# ───────────── /addeve ─────────────
-@bot.tree.command(name="addeve", description="Add Event Points (Eve) and Mission Points (MP) to multiple members")
-@app_commands.describe(
-    members="Members to receive Event and Mission Points (only mentions allowed)",
-    rollcall="Roll-call message link (must start with https://discord.com)"
-)
-async def addeve(
-    interaction: discord.Interaction,
-    members: str,
-    rollcall: str,
-):
-    caller = cast(discord.Member, interaction.user)
-    if not has_basic_permission(caller):
-        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
-        return
-    # Validar link rollcall
-    rollcall = rollcall.strip()
-    if not rollcall.startswith("https://discord.com"):
-        await interaction.response.send_message("❌ Invalid roll-call link format.", ephemeral=True)
-        return
-    # Extraer IDs de miembros mencionados en 'members'
-    member_ids = MENTION_RE.findall(members)
-    if not member_ids:
-        await interaction.response.send_message("❌ No valid member mentions found in members.", ephemeral=True)
-        return
-
-    await log_command_use(interaction)
-    await interaction.response.defer()
-
-    guild = interaction.guild
-    summary = []
-    # Añadir Eve +1 y MP +1 individualmente
-    for mid in member_ids:
-        member = guild.get_member(int(mid))
+    for i, uid in enumerate(member_ids, start=1):
+        member = guild.get_member(uid)
+        if not member:
+            try:
+                member = await guild.fetch_member(uid)
+            except discord.NotFound:
+                member = None
         if member:
             add_points(guild.id, member.id, "eve", 1)
             add_points(guild.id, member.id, "mp", 1)
             summary.append(f"{member.mention} +1 Eve, +1 MP")
         else:
-            summary.append(f"User ID {mid} not found in guild.")
-    # Crear embed
+            summary.append(f"User ID {uid} not found in guild.")
+
+        if i % 10 == 0:
+            await asyncio.sleep(0.2)  # pausa cada 10 miembros
+
+    if rollcall:
+        summary.append(f"\n🔗 {rollcall}")
+
+    await log_command_use(interaction)
+
     embed = discord.Embed(
         title="Event and Mission Points Added",
-        description="\n".join(summary) + (f"\n🔗 {rollcall}" if rollcall else ""),
+        description="\n".join(summary),
         color=discord.Color.gold()
     )
     msg = await interaction.followup.send(embed=embed)
@@ -723,7 +760,8 @@ async def addeve(
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
-# ───────────── /addtier ─────────────
+
+# ───────────── /addtier optimizado ─────────────
 @bot.tree.command(name="addtier", description="Set or update a member's tier level")
 @app_commands.describe(
     member="Member to assign tier",
@@ -743,16 +781,16 @@ async def addtier(
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
 
-    if not rollcall.strip().startswith("https://discord.com"):
+    rollcall = rollcall.strip()
+    if rollcall and "discord" not in rollcall:
         await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
         return
 
-    await log_command_use(interaction)
     await interaction.response.defer()
+    await log_command_use(interaction)
 
     level_name = level.name
     tier_role_id = tier_roles.get(level_name)
-
     if not tier_role_id:
         msg = await interaction.followup.send("❌ Invalid tier level. Make sure you provide a valid Tier.")
         await asyncio.sleep(20)
@@ -762,50 +800,68 @@ async def addtier(
 
     valid_star_levels = {"Low-Tier", "Middle-Tier", "High-Tier", "Elite-Tier", "Celestial-Tier"}
     if stars and level_name not in valid_star_levels:
-        msg = await interaction.followup.send("❌ Only Low-Tier, Middle-Tier, High-Tier, Elite-Tier and Celestial-Tier can receive stars.")
+        msg = await interaction.followup.send(
+            "❌ Only Low-Tier, Middle-Tier, High-Tier, Elite-Tier and Celestial-Tier can receive stars."
+        )
         await asyncio.sleep(15)
         with contextlib.suppress((discord.Forbidden, discord.NotFound)):
             await msg.delete()
         return
-    # Eliminar Tiers anteriores (incluyendo estrellas)
-    roles_to_remove = []
-    for rid in tier_roles.values():
-        role_obj = discord.utils.get(interaction.guild.roles, id=rid)
-        if role_obj and role_obj in member.roles:
-            roles_to_remove.append(role_obj)
 
+    # Precomputar roles del guild
+    guild_roles = {role.id: role for role in interaction.guild.roles}
+
+    # Eliminar roles previos
+    roles_to_remove = [guild_roles[rid] for rid in tier_roles.values() if rid in guild_roles and guild_roles[rid] in member.roles]
     if roles_to_remove:
-        await member.remove_roles(*roles_to_remove)
-    # Añadir nuevo Tier
-    new_tier_role = discord.utils.get(interaction.guild.roles, id=tier_role_id)
-    added_roles = []
+        try:
+            await member.remove_roles(*roles_to_remove)
+        except discord.HTTPException:
+            pass
 
-    if new_tier_role:
-        await member.add_roles(new_tier_role)
-        added_roles.append(new_tier_role.mention)
+    # Función interna para añadir roles de manera segura
+    async def safe_add_roles(member: discord.Member, *roles: discord.Role) -> list[str]:
+        added = []
+        try:
+            await member.add_roles(*[r for r in roles if r])
+            added = [r.mention for r in roles if r]
+        except discord.HTTPException:
+            pass
+        return added
+
+    # Añadir nuevo Tier
+    new_tier_role = guild_roles.get(tier_role_id)
+    added_roles = await safe_add_roles(member, new_tier_role)
+
     # Añadir estrella si procede
     if stars:
         star_label = "[ ⁑ ]" if stars == 2 else "[ ⁂ ]"
         star_role_id = tier_roles.get(star_label)
-        star_role = discord.utils.get(interaction.guild.roles, id=star_role_id)
+        star_role = guild_roles.get(star_role_id)
         if star_role:
-            await member.add_roles(star_role)
-            added_roles.append(star_role.mention)
+            added_roles += await safe_add_roles(member, star_role)
+
+    # Construir descripción del embed
+    description_lines = [
+        f"{member.mention} has been assigned the Tier: **{level_name}**"
+    ]
+    if stars:
+        description_lines.append(f"Stars: **{stars}**")
+    if added_roles:
+        description_lines.append(f"Roles given: {' | '.join(added_roles)}")
+    if rollcall:
+        description_lines.append(f"🔗 {rollcall}")
 
     embed = discord.Embed(
         title="🎇 Tier Updated",
-        description=(
-            f"{member.mention} has been assigned the Tier: **{level_name}**"
-            + (f"\nStars: **{stars}**" if stars else "")
-            + f"\nRoles given: {' | '.join(added_roles)}"
-            + f"\n🔗 {rollcall}"
-        ),
+        description="\n".join(description_lines),
         color=discord.Color.from_rgb(141, 228, 212)
     )
     msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(20)
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
+
 
 # ───────────── /tierList -updated ─────────────
 import asyncio
@@ -1023,153 +1079,116 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
     view = TierListView(pages=pages, invoker_pos=invoker_pos, filter_name=tier.value if tier else None)
     await view.send_initial(interaction)
 
-# ───────────── /deltp ─────────────
-@bot.tree.command(name="deltp", description="Remove Training Points from one or more members (Admin only)")
-@app_commands.describe(
-    members="Mentions or IDs of members separated by spaces",
-    points="Points to remove (positive integer)"
-)
-async def deltp(interaction: discord.Interaction, members: str, points: app_commands.Range[int, 1]):
 
-    caller = cast(discord.Member, interaction.user)
-    if not has_full_permission(caller):
-        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
-        return
-
-    await interaction.response.defer()
-    guild = interaction.guild
-
-    member_ids = MENTION_RE.findall(members)
-    if not member_ids:
-        await interaction.followup.send("❌ No valid member mentions found.", ephemeral=True)
-        return
-
-    summary = []
-    found_any = False  # Indicador para saber si al menos un miembro válido fue afectado
-
-    for mid in member_ids:
-        member = guild.get_member(int(mid))
-        if not member:
-            summary.append(f"User ID {mid} not found in guild.")
-            continue
-        doc = get_user_data(guild.id, member.id)
-        current_tp = doc.get("tp", 0)
-        remove_amt = min(points, current_tp)
-        if remove_amt > 0:
-            new_tp = add_points(guild.id, member.id, "tp", -remove_amt)
-            summary.append(f"{member.mention} -{remove_amt} TP → **{new_tp}**")
-            found_any = True
-        else:
-            summary.append(f"{member.mention} has no TP to remove.")
-
-    if found_any:
-        await log_command_use(interaction)  # <<== Log solo si se eliminó algún punto
-
-    embed = discord.Embed(
-        title="⚠️ Training Points Removed",
-        description="\n".join(summary),
-        color=discord.Color.orange()
-    )
-    msg = await interaction.followup.send(embed=embed)
-    await asyncio.sleep(20)
-    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
-        await msg.delete()
-
-       
-# ───────────── /delmp ─────────────
-@bot.tree.command(name="delmp", description="Remove Mission Points from one or more members (Admin only)")
-@app_commands.describe(
-    members="Mentions or IDs of members separated by spaces",
-    points="Points to remove (positive integer)"
-)
-async def delmp(interaction: discord.Interaction, members: str, points: app_commands.Range[int, 1]):
-
-    caller = cast(discord.Member, interaction.user)
-    if not has_full_permission(caller):
-        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
-        return
-
-    await interaction.response.defer()
-    guild = interaction.guild
-
-    member_ids = MENTION_RE.findall(members)
-    if not member_ids:
-        await interaction.followup.send("❌ No valid member mentions found.", ephemeral=True)
-        return
-
-    summary = []
-    found_any = False
-
-    for mid in member_ids:
-        member = guild.get_member(int(mid))
-        if not member:
-            summary.append(f"User ID {mid} not found in guild.")
-            continue
-        doc = get_user_data(guild.id, member.id)
-        current_mp = doc.get("mp", 0)
-        remove_amt = min(points, current_mp)
-        if remove_amt > 0:
-            new_mp = add_points(guild.id, member.id, "mp", -remove_amt)
-            summary.append(f"{member.mention} -{remove_amt} MP → **{new_mp}**")
-            found_any = True
-        else:
-            summary.append(f"{member.mention} has no MP to remove.")
-
-    if found_any:
-        await log_command_use(interaction)
-
-    embed = discord.Embed(
-        title="⚠️ Mission Points Removed",
-        description="\n".join(summary),
-        color=discord.Color.orange()
-    )
-    msg = await interaction.followup.send(embed=embed)
-    await asyncio.sleep(20)
-    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
-        await msg.delete()
-
-
-# ───────────── /addall ─────────────
-@bot.tree.command(name="addall", description="Add TP and/or MP to one member (Admin only)")
+# ───────────── /addall optimizado ─────────────
+@bot.tree.command(name="addall", description="Add points (TP, MP, Eve, Wp, Rp) to one member (Admin only)")
 @app_commands.describe(
     member="Member to add points to",
     tp="Training Points to add (optional, default 0)",
-    mp="Mission Points to add (optional, default 0)"
+    mp="Mission Points to add (optional, default 0)",
+    eve="Event Points to add (optional, default 0)",
+    wp="War Points to add (optional, default 0)",
+    rp="Raid Points to add (optional, default 0)"
 )
 async def addall(
     interaction: discord.Interaction,
     member: discord.Member,
     tp: app_commands.Range[int, 0] = 0,
     mp: app_commands.Range[int, 0] = 0,
+    eve: app_commands.Range[int, 0] = 0,
+    wp: app_commands.Range[int, 0] = 0,
+    rp: app_commands.Range[int, 0] = 0,
 ):
     caller = cast(discord.Member, interaction.user)
     if not has_full_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
 
-    if tp == 0 and mp == 0:
-        await interaction.response.send_message("❌ You must specify at least TP or MP points to add.", ephemeral=True)
+    points_map = {"tp": tp, "mp": mp, "eve": eve, "wp": wp, "rp": rp}
+    if all(val == 0 for val in points_map.values()):
+        await interaction.response.send_message("❌ You must specify at least one type of points to add.", ephemeral=True)
         return
 
     await interaction.response.defer()
-
     guild_id = interaction.guild.id
     results = []
 
-    if tp > 0:
-        new_tp = add_points(guild_id, member.id, "tp", tp)
-        results.append(f"✅ {member.mention} +{tp} TP → **{new_tp}**")
+    for key, val in points_map.items():
+        if val > 0:
+            try:
+                new_val = add_points(guild_id, member.id, key, val)
+                results.append(f"✅ {member.mention} +{val} {key.upper()} → **{new_val} total**")
+            except Exception as e:
+                results.append(f"❌ Failed to add {key.upper()} to {member.mention}: {e}")
 
-    if mp > 0:
-        new_mp = add_points(guild_id, member.id, "mp", mp)
-        results.append(f"✅ {member.mention} +{mp} MP → **{new_mp}**")
-
-    await log_command_use(interaction)
+    if any("→" in s for s in results):  # Solo log si hubo cambios
+        await log_command_use(interaction)
 
     embed = discord.Embed(
         title="✅ Points Added",
         description="\n".join(results),
         color=discord.Color.yellow()
+    )
+    msg = await interaction.followup.send(embed=embed)
+    await asyncio.sleep(20)
+    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
+        await msg.delete()
+
+
+# ───────────── /delall optimizado ─────────────
+@bot.tree.command(name="delall", description="Remove points (TP, MP, Eve, Wp, Rp) from a member (Admin only)")
+@app_commands.describe(
+    member="Member to remove points from",
+    tp="Training Points to remove (optional)",
+    mp="Mission Points to remove (optional)",
+    eve="Event Points to remove (optional)",
+    wp="War Points to remove (optional)",
+    rp="Raid Points to remove (optional)"
+)
+async def delall(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    tp: app_commands.Range[int, 0] = 0,
+    mp: app_commands.Range[int, 0] = 0,
+    eve: app_commands.Range[int, 0] = 0,
+    wp: app_commands.Range[int, 0] = 0,
+    rp: app_commands.Range[int, 0] = 0,
+):
+    caller = cast(discord.Member, interaction.user)
+    if not has_full_permission(caller):
+        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
+        return
+
+    points_map = {"tp": tp, "mp": mp, "eve": eve, "wp": wp, "rp": rp}
+    if all(val == 0 for val in points_map.values()):
+        await interaction.response.send_message("❌ You must specify at least one type of points to remove.", ephemeral=True)
+        return
+
+    await interaction.response.defer()
+    guild_id = interaction.guild.id
+    summary = []
+    doc = get_user_data(guild_id, member.id)
+
+    for key, val in points_map.items():
+        if val > 0:
+            current = doc.get(key, 0)
+            remove_amt = min(val, current)
+            if remove_amt > 0:
+                try:
+                    new_val = add_points(guild_id, member.id, key, -remove_amt)
+                    summary.append(f"{member.mention} -{remove_amt} {key.upper()} → **{new_val}**")
+                except Exception as e:
+                    summary.append(f"❌ Failed to remove {key.upper()} from {member.mention}: {e}")
+            else:
+                summary.append(f"{member.mention} has no {key.upper()} to remove.")
+
+    if any("→" in s for s in summary):  # Solo log si hubo cambios
+        await log_command_use(interaction)
+
+    embed = discord.Embed(
+        title="⚠️ Points Removed",
+        description="\n".join(summary),
+        color=discord.Color.orange()
     )
     msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(20)
@@ -1194,18 +1213,9 @@ has_basic_permission = lambda m: has_permission(m, BASIC_ROLE_IDS)
 has_full_permission = lambda m: has_permission(m, FULL_ROLE_IDS)
 
 # ───────────── Eventos ─────────────
-monitor_lock = threading.Lock()  # Lock global para reinicio
 @bot.event
 async def on_ready():
-    print(f"🤖 Bot started as {bot.user} (ID: {bot.user.id}) — connected successfully.")
-    if not hasattr(bot, "synced"):
-        try:
-            synced = await bot.tree.sync()
-            print(f"☑️ Synced {len(synced)} slash commands.")
-            bot.synced = True
-        except Exception as e:
-            print(f"❌ Slash command sync error: {e}")
-    threading.Thread(target=monitor_bot, daemon=True).start()
+    print(f"Bot conectado como {bot.user} (ID: {bot.user.id})")
 
 # ───────────── Keep‑alive server ─────────────
 app = Flask(__name__)
@@ -1218,48 +1228,11 @@ def run_flask():
     app.run(host="0.0.0.0", port=port, debug=False)
 threading.Thread(target=run_flask, daemon=True).start()
 
-# ─────── Monitor Bot Mejorado ────────
-def monitor_bot():
-    print("⏳ Waiting 5 minutes before starting monitoring…", flush=True)
-    time.sleep(300)  # Espera inicial 5 minutos
-    process = psutil.Process(os.getpid())
-    print("🛡️ RAM and connection monitor started.", flush=True)
-    
-    consecutive_high_mem = 0
-    consecutive_high_latency = 0
-    check_interval = 600  # 10 min entre chequeos
-    while True:
-        try:
-            mem_mb = process.memory_info().rss / (1024 * 1024)
-            latency_ms = bot.latency * 1000
-            print(f"📦 Memory: {mem_mb:.2f} MB | 🌐 Latency: {latency_ms:.0f} ms", flush=True)
-            # Chequeo gradual para evitar reinicio por pico temporal
-            if mem_mb >= 490:
-                consecutive_high_mem += 1
-            else:
-                consecutive_high_mem = 0
-            if latency_ms > 1000:
-                consecutive_high_latency += 1
-            else:
-                consecutive_high_latency = 0
-            if consecutive_high_mem >= 2 or consecutive_high_latency >= 2 or bot.is_closed() or not bot.is_ready():
-                with monitor_lock:  # Solo un thread reiniciando
-                    print(f"⚠️ Restart triggered. Memory: {mem_mb:.2f}, Latency: {latency_ms:.0f} ms", flush=True)
-                    sys.exit(1)
-            print("✅ Bot check passed.", flush=True)
-            time.sleep(check_interval)
-        except Exception as e:
-            print(f"❌ Error in monitor_bot: {e}", flush=True)
-            time.sleep(10)
-
 # ───────────── Error Handler ─────────────
-logging.basicConfig(
-    filename="bot_errors.log",
-    level=logging.ERROR,
-    format="%(asctime)s | %(levelname)s | %(message)s"
-)
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    import traceback
+    traceback.print_exc()
     async def safe_send(msg: str):
         try:
             if interaction.response.is_done():
@@ -1275,22 +1248,23 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
     elif isinstance(error, app_commands.CheckFailure):
         await safe_send("❌ You don't meet the command requirements.")
     else:
-        logging.error("Unexpected error:\n%s", traceback.format_exc())
         await safe_send("⚠️ An unexpected error occurred.")
 
-# ───────────── Run bot ─────────────
+# ───────────── Run bot + 429 ─────────────
 TOKEN = os.getenv("DISCORD_TOKEN")
 if not TOKEN:
     raise RuntimeError("Environment variable DISCORD_TOKEN not set.")
+
 try:
     bot.run(TOKEN)
+except discord.errors.HTTPException as e:
+    if e.status == 429:
+        print("❌ Login blocked: 429 Too Many Requests. Bot will not retry.", flush=True)
+    else:
+        print(f"❌ HTTPException occurred: {e}", flush=True)
+    sys.exit(1)
 except Exception as e:
-    print(f"Fatal error running bot: {e}")
+    print(f"❌ Fatal error running bot: {e}", flush=True)
     import traceback
     traceback.print_exc()
     sys.exit(1)
-
-
-
-
-
