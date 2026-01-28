@@ -39,6 +39,15 @@ async def get_guild_members(guild: discord.Guild) -> dict[int, discord.Member]:
     members = {m.id: m for m in guild.members}
     guild_members_cache[guild.id] = members
     return members
+    
+# ───────────── Lock por guild ─────────────
+guild_command_locks: dict[int, asyncio.Lock] = {}  # lock global por guild
+
+def get_tier_lock(guild_id: int) -> asyncio.Lock:
+    """
+    Devuelve un lock único por guild para evitar race conditions y 429.
+    """
+    return guild_command_locks.setdefault(guild_id, asyncio.Lock())
 
 # ───────────── MongoDB setup ─────────────
 MONGO_URI = os.getenv("MONGO_URI")
@@ -59,7 +68,6 @@ def print_db_sizes() -> None:
     print("==============================\n")
 
 print_db_sizes() # Mostrar el uso de espacio siempre al iniciar
-
 try:
     client.admin.command("ping")
     print("Pinged your deployment. Connected to MongoDB!")
@@ -1306,3 +1314,4 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
