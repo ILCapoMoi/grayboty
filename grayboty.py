@@ -261,9 +261,12 @@ def guild_command_wrapper(prefetch_members: bool = False, delay: float = 1.0):
 @bot.tree.command(name="showprofile", description="Show Training & Mission Points")
 @app_commands.describe(member="Member to view; leave empty for yourself")
 async def showprofile(interaction: discord.Interaction, member: discord.Member | None = None):
+    # Añadido defer para evitar que el webhook expire (solución al error 404/10015)
+    await interaction.response.defer()
+    
     members_cache = {}
     if not interaction.guild:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "This command can only be used inside a server.",
             ephemeral=True
         )
@@ -1234,3 +1237,4 @@ except Exception as e:
     print(f"❌ Fatal error running bot: {e}", flush=True)
     traceback.print_exc()
     sys.exit(1)
+
