@@ -704,7 +704,31 @@ async def addwar(
     summary.append(f"{caller.mention} has added war points to:")
 
     for i, uid in enumerate(all_ids, start=1):
-        member_obj = members_cache.
+        member_obj = members_cache.get(uid)
+        if member_obj:
+            add_points(interaction.guild.id, member_obj.id, "wp", points)
+            summary.append(f"{member_obj.mention} +{points} WP")
+        else:
+            summary.append(f"User ID {uid} not found in guild.")
+
+        if i % 10 == 0:
+            await asyncio.sleep(0.2)
+
+    if rollcall:
+        summary.append(f"\n🔗 Rollcall: {rollcall}")
+
+    await log_command_use(interaction, members_cache=members_cache)
+
+    embed = discord.Embed(
+        title="War Points Added",
+        description="\n".join(summary),
+        color=discord.Color.red()
+    )
+
+    msg = await interaction.followup.send(embed=embed)
+    await asyncio.sleep(20)
+    with contextlib.suppress(discord.Forbidden, discord.NotFound):
+        await msg.delete()
 
 
 # ───────────── /addeve ─────────────
@@ -1208,3 +1232,4 @@ except Exception as e:
     print(f"❌ Fatal error running bot: {e}", flush=True)
     traceback.print_exc()
     sys.exit(1)
+
