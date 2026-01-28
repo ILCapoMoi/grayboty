@@ -924,8 +924,10 @@ async def addtier(
     with contextlib.suppress((discord.Forbidden, discord.NotFound)):
         await msg.delete()
 
-# ───────────── /tierList -updated ─────────────
+# ───────────── /tierList - fixed ─────────────
 import asyncio
+import discord
+from discord import app_commands
 
 tierlist_locks: dict[str, asyncio.Lock] = {}
 guild_command_locks: dict[int, asyncio.Lock] = {}  # 🔒 lock por guild
@@ -938,13 +940,13 @@ async def apply_guild_command_delay(interaction: discord.Interaction, delay: flo
 
 class TierListView(discord.ui.View):
     def __init__(self, pages: list[list[str]], invoker_pos: int | None, filter_name: str | None = None):
-        super().__init__(timeout=180)
+        super().__init__(timeout=180)  # ⬅️ Timeout 10 minutos
         self.pages = pages
         self.current_page = 0
         self.invoker_pos = invoker_pos
         self.filter_name = filter_name
         self.message: discord.Message | None = None
-        self._lock: asyncio.Lock | None = None  # Lock por vista
+        self._lock: asyncio.Lock | None = None
 
     async def _get_lock(self):
         if not self._lock:
@@ -957,7 +959,6 @@ class TierListView(discord.ui.View):
 
     def create_embed(self):
         filter_text = f"\n 🔎 Filter applied: {self.filter_name}" if self.filter_name else ""
-
         tier_colors = {
             "✩ Legend-Tier": 0xebb9ff,
             "★ Ashenlight-Tier": 0x8d4747,
@@ -969,23 +970,12 @@ class TierListView(discord.ui.View):
         }
         color = tier_colors.get(self.filter_name, 0xffffff)
 
-        # ─── FIX REAL: truncado sí aplicado ───
-        page_content = []
-        for line in self.pages[self.current_page]:
-            if len(line) > 100:
-                line = line[:97] + "..."
-            page_content.append(line)
-
+        page_content = [line[:97] + "..." if len(line) > 100 else line for line in self.pages[self.current_page]]
         page_text = "\n".join(page_content)
 
         embed = discord.Embed(
-            title="",
-            description=(
-                "# 🏆 TIER LEADERBOARD\n"
-                f"{filter_text}\n"
-                "-# ─────────────────────────\n"
-                + page_text
-            ),
+            title="# 🏆 TIER LEADERBOARD",
+            description=f"{filter_text}\n-# ─────────────────────────\n{page_text}",
             color=color
         )
 
@@ -1003,10 +993,17 @@ class TierListView(discord.ui.View):
         embed = self.create_embed()
         lock = await self._get_lock()
         async with lock:
-            if self.message.embeds and self.message.embeds[0].description == embed.description:
-                await interaction.response.defer()
-                return
-            await interaction.response.edit_message(embed=embed, view=self)
+            try:
+                if self.message.embeds and self.message.embeds[0].description == embed.description:
+                    await interaction.response.defer()
+                    return
+                await interaction.response.edit_message(embed=embed, view=self)
+            except discord.InteractionResponded:
+                # ⬅️ Si ya respondimos antes
+                try:
+                    await interaction.followup.edit_message(self.message.id, embed=embed, view=self)
+                except (discord.NotFound, discord.HTTPException):
+                    pass
 
     @discord.ui.button(label="⏮️ First", style=discord.ButtonStyle.secondary)
     async def first(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -1046,7 +1043,7 @@ class TierListView(discord.ui.View):
             except discord.NotFound:
                 pass
 
-
+# ───────────── /tierlist command ─────────────
 @bot.tree.command(name="tierlist", description="Show top members sorted by Tier and group rank")
 @app_commands.describe(tier="Optional: filter by a specific Tier")
 @app_commands.choices(tier=[
@@ -1060,12 +1057,10 @@ class TierListView(discord.ui.View):
 ])
 async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[str] | None = None):
     await interaction.response.defer(thinking=True)
-
-    # 🔒 Delay global anti-429 (1 segundo por guild)
     await apply_guild_command_delay(interaction, delay=1.0)
 
     guild = interaction.guild
-    members = guild.members
+    members = guild.members  # ⬅️ Aquí puedes reemplazar por get_guild_members si quieres cache
 
     tier_order = [
         "✩ Legend-Tier", "★ Ashenlight-Tier", "Celestial-Tier", "Elite-Tier",
@@ -1085,8 +1080,7 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
             return f"{base_tier} [ ⁂ ]"
         elif tier_roles.get("[ ⁑ ]") in role_ids:
             return f"{base_tier} [ ⁑ ]"
-        else:
-            return base_tier
+        return base_tier
 
     def get_member_rank(member: discord.Member) -> str | None:
         member_role_names = {role.name for role in member.roles}
@@ -1132,6 +1126,7 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
         if member.id == invoker_id:
             invoker_pos = i
             break
+
     lines = []
     for i, (member, tier_name, _) in enumerate(members_with_tier, start=1):
         base_tier = tier_name.split(" [")[0].strip()
@@ -1149,12 +1144,9 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
 
     per_page = 15
     pages = [lines[i:i + per_page] for i in range(0, len(lines), per_page)]
-    view = TierListView(
-        pages=pages,
-        invoker_pos=invoker_pos,
-        filter_name=tier.value if tier else None
-    )
+    view = TierListView(pages=pages, invoker_pos=invoker_pos, filter_name=tier.value if tier else None)
     await view.send_initial(interaction)
+
 
 # ───────────── /addpoints ─────────────
 @bot.tree.command(name="addpoints", description="Add or remove points (TP, MP, Eve, Wp, Rp) from a member (Admin only)")
@@ -1241,7 +1233,6 @@ async def addpoints(
         with contextlib.suppress((discord.Forbidden, discord.NotFound)):
             await msg.delete()
 
-
 # ───────────── Autorización de roles ─────────────
 BASIC_ROLE_IDS = {
     1381235438563491841,  # LEADERSHIP
@@ -1262,6 +1253,11 @@ has_full_permission = lambda m: has_permission(m, FULL_ROLE_IDS)
 @bot.event
 async def on_ready():
     print(f"Bot conectado como {bot.user} (ID: {bot.user.id})")
+
+    GUILD_ID = 1380994584582160645
+    guild = discord.Object(id=GUILD_ID)
+    await bot.tree.sync(guild=guild)
+    print(f"Comandos sincronizados en el servidor {GUILD_ID}")
 
 # ───────────── Keep‑alive server ─────────────
 app = Flask(__name__)
@@ -1314,4 +1310,5 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
