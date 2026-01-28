@@ -491,8 +491,8 @@ async def addtp(
     rollcall: str,
     mvp: str = "",
     attended: str = "",
-    members_cache = {}
 ):
+    members_cache = {}
     caller = cast(discord.Member, interaction.user)
 
     if not has_basic_permission(caller):
@@ -1234,7 +1234,3 @@ except Exception as e:
     print(f"❌ Fatal error running bot: {e}", flush=True)
     traceback.print_exc()
     sys.exit(1)
-
-
-
-
