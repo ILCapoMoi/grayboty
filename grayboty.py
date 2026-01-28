@@ -1253,11 +1253,8 @@ has_full_permission = lambda m: has_permission(m, FULL_ROLE_IDS)
 @bot.event
 async def on_ready():
     print(f"Bot conectado como {bot.user} (ID: {bot.user.id})")
-
-    GUILD_ID = 1380994584582160645
-    guild = discord.Object(id=GUILD_ID)
-    await bot.tree.sync(guild=guild)
-    print(f"Comandos sincronizados en el servidor {GUILD_ID}")
+    await bot.tree.sync()
+    print("Comandos sincronizados globalmente")
 
 # ───────────── Keep‑alive server ─────────────
 app = Flask(__name__)
@@ -1310,5 +1307,6 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
