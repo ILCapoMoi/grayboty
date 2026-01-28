@@ -10,7 +10,6 @@ import traceback
 import contextlib
 import asyncio
 from typing import List, cast
-from typing import Dict
 
 from datetime import datetime, timezone
 import aiohttp
@@ -242,7 +241,7 @@ def guild_command_wrapper(prefetch_members: bool = False, delay: float = 1.0):
                     # Delay anti-429 directo dentro del wrapper
                     await asyncio.sleep(delay)
 
-                    members_cache: Dict = {}
+                    members_cache = {}
                     if prefetch_members:
                         members_cache = await get_guild_members(interaction.guild)
 
@@ -261,7 +260,8 @@ def guild_command_wrapper(prefetch_members: bool = False, delay: float = 1.0):
 @guild_command_wrapper(prefetch_members=True, delay=1.0)
 @bot.tree.command(name="showprofile", description="Show Training & Mission Points")
 @app_commands.describe(member="Member to view; leave empty for yourself")
-async def showprofile(interaction: discord.Interaction, member: discord.Member | None = None, members_cache: Dict = {}):
+async def showprofile(interaction: discord.Interaction, member: discord.Member | None = None):
+    members_cache = {}
     if not interaction.guild:
         await interaction.response.send_message(
             "This command can only be used inside a server.",
@@ -435,7 +435,8 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
 # ───────────── /LOGS ─────────────
 LOG_CHANNEL_ID = 1398432802281750639  # Hidden channel for logs
 
-async def log_command_use(interaction: discord.Interaction, members_cache: Dict = {}):
+async def log_command_use(interaction: discord.Interaction):
+    members_cache = {}
     params = []
 
     if interaction.data.get("options"):
@@ -490,7 +491,7 @@ async def addtp(
     rollcall: str,
     mvp: str = "",
     attended: str = "",
-    members_cache: Dict = {}
+    members_cache = {}
 ):
     caller = cast(discord.Member, interaction.user)
 
@@ -559,8 +560,8 @@ async def addmp(
     member: str,
     points: int,
     rollcall: str = "",
-    members_cache: Dict = {}
 ):
+    members_cache = {}
     caller = cast(discord.Member, interaction.user)
     if not has_basic_permission(caller):
         await interaction.followup.send("❌ You lack permission.", ephemeral=True)
@@ -611,8 +612,8 @@ async def addra(
     members: str,
     rollcall: str,
     extra: str = "",
-    members_cache: Dict = {}
 ):
+    members_cache = {}
     caller = cast(discord.Member, interaction.user)
     if not has_basic_permission(caller):
         await interaction.followup.send("❌ You lack permission.", ephemeral=True)
@@ -682,8 +683,8 @@ async def addwar(
     member: str,
     points: int,
     rollcall: str = "",
-    members_cache: Dict = {}
 ):
+    members_cache = {}
     caller = cast(discord.Member, interaction.user)
     if not has_basic_permission(caller):
         await interaction.followup.send("❌ You lack permission.", ephemeral=True)
@@ -803,8 +804,8 @@ async def addtier(
     level: discord.Role,
     rollcall: str = "",
     stars: app_commands.Range[int, 2, 3] | None = None,
-    members_cache: Dict = {}
 ):
+    members_cache = {}
     caller = cast(discord.Member, interaction.user)
     if not has_basic_permission(caller):
         await interaction.followup.send("❌ You lack permission.", ephemeral=True)
@@ -1018,8 +1019,8 @@ class TierListView(discord.ui.View):
 async def tierlist(
     interaction: discord.Interaction,
     tier: app_commands.Choice[str] | None = None,
-    members_cache: Dict = {}
 ):
+    members_cache = {}
     # ⬅️ members_cache evita fetch repetido
     guild = interaction.guild
     members = members_cache if members_cache else {m.id: m for m in guild.members}
@@ -1127,8 +1128,8 @@ async def addpoints(
     eve: int = 0,
     wp: int = 0,
     rp: int = 0,
-    members_cache: Dict = {}
 ):
+    members_cache = {}
     caller = cast(discord.Member, interaction.user)
     if not has_full_permission(caller):
         await interaction.followup.send("❌ You lack permission.", ephemeral=True)
@@ -1233,6 +1234,7 @@ except Exception as e:
     print(f"❌ Fatal error running bot: {e}", flush=True)
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
