@@ -4,6 +4,7 @@ import re
 import sys
 import time
 import logging
+import functools
 import threading
 import traceback
 import contextlib
@@ -23,31 +24,6 @@ from flask import Flask
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 from pymongo import ReturnDocument
-
-# ───────────── Cache segura de miembros ─────────────
-guild_members_cache: dict[int, dict[int, discord.Member]] = {}
-
-async def get_guild_members(guild: discord.Guild) -> dict[int, discord.Member]:
-    """
-    Devuelve un diccionario {member_id: Member} para el guild.
-    Usa cache interna para no hacer múltiples llamadas a Discord.
-    """
-    if guild.id in guild_members_cache:
-        return guild_members_cache[guild.id]
-
-    # Cargar todos los miembros que están en cache local
-    members = {m.id: m for m in guild.members}
-    guild_members_cache[guild.id] = members
-    return members
-    
-# ───────────── Lock por guild ─────────────
-guild_command_locks: dict[int, asyncio.Lock] = {}  # lock global por guild
-
-def get_tier_lock(guild_id: int) -> asyncio.Lock:
-    """
-    Devuelve un lock único por guild para evitar race conditions y 429.
-    """
-    return guild_command_locks.setdefault(guild_id, asyncio.Lock())
 
 # ───────────── MongoDB setup ─────────────
 MONGO_URI = os.getenv("MONGO_URI")
@@ -98,6 +74,21 @@ def save_allowed_roles(gid: int, role_ids: List[int]) -> None:
         {"$set": {"role_ids": role_ids}},
         upsert=True,
     )
+# ───────────── Autorización de roles ─────────────
+BASIC_ROLE_IDS = {
+    1381235438563491841,  # LEADERSHIP
+    1399751111602212884,  # Gray Council
+    1381244026790871111,  # TGO | Staff
+}
+FULL_ROLE_IDS = {
+    1381235438563491841,  # LEADERSHIP
+    1399751111602212884,  # Gray Council
+}
+def has_permission(member: discord.Member, allowed_roles: set[int]) -> bool:
+    """Check if member has at least one role in allowed_roles."""
+    return any(role.id in allowed_roles for role in member.roles)
+has_basic_permission = lambda m: has_permission(m, BASIC_ROLE_IDS)
+has_full_permission = lambda m: has_permission(m, FULL_ROLE_IDS)
 
 # ───────────── Constantes ─────────────
 MENTION_RE = re.compile(r"<@!?(\d+)>")
@@ -112,7 +103,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_error(event, *args, **kwargs):
-    import traceback
     print(f"[GLOBAL ERROR] in event: {event}")
     traceback.print_exc()
 
@@ -221,56 +211,56 @@ group_ranks_order = [
     "Acolyte",
     "Initiate",
 ]
+# ───────────── Cache segura de miembros ─────────────
+guild_members_cache: dict[int, dict[int, discord.Member]] = {}
 
-# ───────────── Global guild command control ─────────────
-import asyncio
-import time
-
-guild_last_command: dict[int, float] = {}
-guild_command_locks: dict[int, asyncio.Lock] = {}
-
-def get_guild_lock(guild_id: int) -> asyncio.Lock:
-    if guild_id not in guild_command_locks:
-        guild_command_locks[guild_id] = asyncio.Lock()
-    return guild_command_locks[guild_id]
-
-# ───────────── Global guild command delay ─────────────
-async def apply_guild_command_delay(interaction: discord.Interaction, delay: float = 1.0):
-    if not interaction.guild:
-        return
-
-    guild_id = interaction.guild.id
-    lock = get_guild_lock(guild_id)
-
-    async with lock:
-        now = time.monotonic()
-        last = guild_last_command.get(guild_id, 0.0)
-        elapsed = now - last
-
-        if elapsed < delay:
-            await asyncio.sleep(delay - elapsed)
-
-        guild_last_command[guild_id] = time.monotonic()
-
-# ───────────── Helper: obtener miembros cacheados ─────────────
 async def get_guild_members(guild: discord.Guild) -> dict[int, discord.Member]:
-    """
-    Retorna un dict {member_id: Member} con todos los miembros cacheados.
-    Si el cache no tiene algún miembro, hace un fetch masivo (chunk) para precache completo.
-    """
-    members_dict = {m.id: m for m in guild.members}
+    if guild.id in guild_members_cache:
+        return guild_members_cache[guild.id]
+    members = {m.id: m for m in guild.members}
+    guild_members_cache[guild.id] = members
+    return members
 
-    if len(members_dict) < guild.member_count:  # falta algún miembro
-        await guild.chunk()  # Discord.py v2.0+ pre-cache
-        members_dict = {m.id: m for m in guild.members}
+# ───────────── Lock por guild ─────────────
+guild_command_locks: dict[int, asyncio.Lock] = {}  # lock global por guild
+def get_tier_lock(guild_id: int) -> asyncio.Lock:
+    return guild_command_locks.setdefault(guild_id, asyncio.Lock())
 
-    return members_dict
-        
+# ───────────── Decorador wrapper ─────────────
+def guild_command_wrapper(prefetch_members: bool = False, delay: float = 1.0):
+    def decorator(func):
+        @functools.wraps(func)
+        async def wrapped(interaction: discord.Interaction, *args, **kwargs):
+            try:
+                await interaction.response.defer(thinking=True)
+                status_msg = await interaction.followup.send("⏳ Processing...", ephemeral=True)
+
+                guild_id = interaction.guild.id
+                lock = get_tier_lock(guild_id)
+                async with lock:
+                    # Delay anti-429 directo dentro del wrapper
+                    await asyncio.sleep(delay)
+
+                    members_cache = {}
+                    if prefetch_members:
+                        members_cache = await get_guild_members(interaction.guild)
+
+                    result = await func(interaction, *args, members_cache=members_cache, **kwargs)
+
+                await status_msg.delete()
+                return result
+
+            except Exception as e:
+                await interaction.followup.send(f"❌ Command failed: {e}", ephemeral=True)
+                raise
+        return wrapped
+    return decorator
+
 # ───────────── /SHOWPROFILE ─────────────
+@guild_command_wrapper(prefetch_members=True, delay=1.0)
 @bot.tree.command(name="showprofile", description="Show Training & Mission Points")
 @app_commands.describe(member="Member to view; leave empty for yourself")
-async def showprofile(interaction: discord.Interaction, member: discord.Member | None = None):
-
+async def showprofile(interaction: discord.Interaction, member: discord.Member | None = None, members_cache: dict[int, discord.Member] = {}):
     if not interaction.guild:
         await interaction.response.send_message(
             "This command can only be used inside a server.",
@@ -278,179 +268,173 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
         )
         return
 
-    if not interaction.response.is_done():
-        await interaction.response.defer(thinking=True)
-
     if member is None:
         member = interaction.user
 
-    # ───── LOCK POR GUILD ─────
-    lock = get_tier_lock(interaction.guild.id)
-    async with lock:
+    doc = points_collection.find_one({
+        "guild_id": interaction.guild.id,
+        "user_id": member.id
+    })
 
-        doc = points_collection.find_one({
-            "guild_id": interaction.guild.id,
-            "user_id": member.id
-        })
-
-        if not doc or all(doc.get(k, 0) == 0 for k in ("tp", "mp", "rp", "wp")):
-            safe_name = member.display_name.replace("_", "\\_")
-            msg = await interaction.followup.send(
-                f"_**{safe_name}** has not yet woven their story into this place._"
-            )
-            await asyncio.sleep(15)
-            with contextlib.suppress(discord.Forbidden, discord.NotFound):
-                await msg.delete()
-            return
-
-        highest_rank_raw = get_highest_rank(member)
-        current_rank = (
-            highest_rank_raw.split("|")[-1].strip()
-            if highest_rank_raw and "|" in highest_rank_raw
-            else highest_rank_raw
+    if not doc or all(doc.get(k, 0) == 0 for k in ("tp", "mp", "rp", "wp")):
+        safe_name = member.display_name.replace("_", "\\_")
+        msg = await interaction.followup.send(
+            f"_**{safe_name}** has not yet woven their story into this place._"
         )
-
-        embed = discord.Embed(
-            title=f"{member.display_name}",
-            color=discord.Color.from_rgb(247, 240, 172)
-        )
-        embed.set_thumbnail(url=member.display_avatar.url)
-
-        # ───── POINTS ─────
-        embed.add_field(name="**Training Points**", value=doc.get("tp", 0), inline=True)
-        embed.add_field(name="**Mission Points**", value=doc.get("mp", 0), inline=True)
-        embed.add_field(name="\u200b", value="\u200b", inline=True)
-        embed.add_field(name="**War Points**", value=doc.get("wp", 0), inline=True)
-        embed.add_field(name="**Raid Points**", value=doc.get("rp", 0), inline=True)
-        embed.add_field(name="\u200b", value="\u200b", inline=True)
-
-        # ───── LASERS ─────
-        embed.add_field(
-            name="",
-            value="<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209>"
-                  "<:R1Laser:1395746456681578628><:R1Laser:1395746456681578628>"
-                  "<:R1Laser:1395746456681578628><:R1Laser:1395746456681578628>"
-                  "<:R2Laser:1395746474293198949> "
-                  "<:M2LaserInv:1395909504482283750><:M1Laser:1395909456986112110>"
-                  "<:M1Laser:1395909456986112110><:M1Laser:1395909456986112110>"
-                  "<:M1Laser:1395909456986112110><:H2LaserInv:1395909361494396948>"
-                  "<:H1LaserInv:1395909332339790065>",
-            inline=False
-        )
-
-        # ───── MEDALS ─────
-        glory_emoji = "<:Glory:1401695802660749362>"
-        user_medals_full = []
-
-        LEADER = 1419415839471304856
-        if discord.utils.get(member.roles, id=LEADER):
-            user_medals_full = list(medal_roles.values())
-        else:
-            for role_id, emoji in medal_roles.items():
-                if discord.utils.get(member.roles, id=role_id):
-                    user_medals_full.append(emoji)
-                else:
-                    user_medals_full.append(glory_emoji)
-
-        embed.add_field(
-            name="**Medals of honor**",
-            value=" {} ".format(" ┃ ".join(user_medals_full)),
-            inline=False
-        )
-
-        # ─ RETIRED ROLES ─
-        retired_roles = [
-            {"id": 1413828641397149716, "name": "Emeritus Emperor", "subtitle": "\u200b",
-             "emoji": "<:RetiredTGO:1429142210301005904>", "text": "Once crowned, forever eternal."},
-            {"id": 1413829540987277332, "name": "Elder of Council", "subtitle": "\u200b",
-             "emoji": "<:RetiredCo:1413856505987596380>", "text": "Their wisdom echoes in every council hall."},
-            {"id": 1381562883803971605, "name": "Retired", "subtitle": "\u200b",
-             "emoji": "<:RetiredHR:1413856468595114056>", "text": "Their honor endures beyond their service."}
-        ]
-
-        retired_detected = None
-        for role in retired_roles:
-            if discord.utils.get(member.roles, id=role["id"]):
-                retired_detected = role
-                break
-
-        if retired_detected:
-            embed.add_field(
-                name="**Rank**",
-                value=f"{retired_detected['emoji']} {retired_detected['name']}\n-# _{retired_detected['subtitle']}_",
-                inline=False
-            )
-        else:
-            embed.add_field(
-                name="**Rank**",
-                value=f"{rank_emojis.get(current_rank, '')} | {current_rank}",
-                inline=False
-            )
-
-        # ───── LEVEL-TIER ─────
-        member_role_ids = [role.id for role in member.roles]
-        level_tier = None
-        stars = ""
-
-        for base in ["✩ Legend-Tier", "★ Ashenlight-Tier", "Celestial-Tier",
-                     "Elite-Tier", "High-Tier", "Middle-Tier", "Low-Tier"]:
-            if tier_roles.get(base) in member_role_ids:
-                level_tier = base
-                break
-
-        if level_tier:
-            if tier_roles.get("[ ⁂ ]") in member_role_ids:
-                stars = " [ ⁂ ]"
-            elif tier_roles.get("[ ⁑ ]") in member_role_ids:
-                stars = " [ ⁑ ]"
-
-            embed.add_field(
-                name="**Level-Tier**",
-                value=f"{tier_emojis.get(level_tier, '')} {level_tier}{stars}",
-                inline=False
-            )
-
-        # ───── TEXTO FINAL ─────
-        if retired_detected:
-            embed.add_field(name="", value=f"> {retired_detected['text']}", inline=False)
-        elif current_rank == "Elder Gray Emperor":
-            embed.add_field(name="", value="> Founder, Owner and Emperor of The Grey Order", inline=False)
-        elif current_rank == "Gray Emperor":
-            embed.add_field(name="", value="> Leader and Emperor of the Grey Order", inline=False)
-        elif current_rank in ["Gray Lord", "Ashen Lord"]:
-            embed.add_field(name="", value="> Part of the council of The Grey Order", inline=False)
-        elif current_rank in ["Silver Knight", "Master", "Grandmaster", "Master of Balance"]:
-            embed.add_field(name="", value="From this rank onwards, promotions are decided by HR.", inline=False)
-        else:
-            if current_rank in rank_list:
-                idx = rank_list.index(current_rank)
-                if idx + 1 < len(rank_list):
-                    next_rank = rank_list[idx + 1]
-                    if next_rank in rank_requirements:
-                        req = rank_requirements[next_rank]
-                        req_text = (
-                            f"**Next rank**\n{rank_emojis.get(next_rank, '')} | {next_rank}\n"
-                            f"· _**{req.get('tp', 0)}** training points_\n"
-                            f"· _**{req.get('mp', 0)}** mission points_"
-                        )
-                        if req.get("tier"):
-                            req_text += f"\n· _**{req['tier']}** level_"
-                        embed.add_field(name="", value=req_text, inline=False)
-
-        embed.add_field(
-            name="", value="-# <:OficialTGO:1395904116072648764> The Gray Order", inline=False
-        )
-
-        msg = await interaction.followup.send(embed=embed)
-
-        await asyncio.sleep(30)
+        await asyncio.sleep(15)
         with contextlib.suppress(discord.Forbidden, discord.NotFound):
             await msg.delete()
+        return
+
+    highest_rank_raw = get_highest_rank(member)
+    current_rank = (
+        highest_rank_raw.split("|")[-1].strip()
+        if highest_rank_raw and "|" in highest_rank_raw
+        else highest_rank_raw
+    )
+
+    embed = discord.Embed(
+        title=f"{member.display_name}",
+        color=discord.Color.from_rgb(247, 240, 172)
+    )
+    embed.set_thumbnail(url=member.display_avatar.url)
+
+    # ───── POINTS ─────
+    embed.add_field(name="**Training Points**", value=doc.get("tp", 0), inline=True)
+    embed.add_field(name="**Mission Points**", value=doc.get("mp", 0), inline=True)
+    embed.add_field(name="\u200b", value="\u200b", inline=True)
+    embed.add_field(name="**War Points**", value=doc.get("wp", 0), inline=True)
+    embed.add_field(name="**Raid Points**", value=doc.get("rp", 0), inline=True)
+    embed.add_field(name="\u200b", value="\u200b", inline=True)
+
+    # ───── LASERS ─────
+    embed.add_field(
+        name="",
+        value="<:H1Laser:1395749428135985333><:H2Laser:1395749449753563209>"
+              "<:R1Laser:1395746456681578628><:R1Laser:1395746456681578628>"
+              "<:R1Laser:1395746456681578628><:R1Laser:1395746456681578628>"
+              "<:R2Laser:1395746474293198949> "
+              "<:M2LaserInv:1395909504482283750><:M1Laser:1395909456986112110>"
+              "<:M1Laser:1395909456986112110><:M1Laser:1395909456986112110>"
+              "<:M1Laser:1395909456986112110><:H2LaserInv:1395909361494396948>"
+              "<:H1LaserInv:1395909332339790065>",
+        inline=False
+    )
+
+    # ───── MEDALS ─────
+    glory_emoji = "<:Glory:1401695802660749362>"
+    user_medals_full = []
+
+    LEADER = 1419415839471304856
+    if discord.utils.get(member.roles, id=LEADER):
+        user_medals_full = list(medal_roles.values())
+    else:
+        for role_id, emoji in medal_roles.items():
+            if discord.utils.get(member.roles, id=role_id):
+                user_medals_full.append(emoji)
+            else:
+                user_medals_full.append(glory_emoji)
+
+    embed.add_field(
+        name="**Medals of honor**",
+        value=" {} ".format(" ┃ ".join(user_medals_full)),
+        inline=False
+    )
+
+    # ─ RETIRED ROLES ─
+    retired_roles = [
+        {"id": 1413828641397149716, "name": "Emeritus Emperor", "subtitle": "\u200b",
+         "emoji": "<:RetiredTGO:1429142210301005904>", "text": "Once crowned, forever eternal."},
+        {"id": 1413829540987277332, "name": "Elder of Council", "subtitle": "\u200b",
+         "emoji": "<:RetiredCo:1413856505987596380>", "text": "Their wisdom echoes in every council hall."},
+        {"id": 1381562883803971605, "name": "Retired", "subtitle": "\u200b",
+         "emoji": "<:RetiredHR:1413856468595114056>", "text": "Their honor endures beyond their service."}
+    ]
+
+    retired_detected = None
+    for role in retired_roles:
+        if discord.utils.get(member.roles, id=role["id"]):
+            retired_detected = role
+            break
+
+    if retired_detected:
+        embed.add_field(
+            name="**Rank**",
+            value=f"{retired_detected['emoji']} {retired_detected['name']}\n-# _{retired_detected['subtitle']}_",
+            inline=False
+        )
+    else:
+        embed.add_field(
+            name="**Rank**",
+            value=f"{rank_emojis.get(current_rank, '')} | {current_rank}",
+            inline=False
+        )
+
+    # ───── LEVEL-TIER ─────
+    member_role_ids = [role.id for role in member.roles]
+    level_tier = None
+    stars = ""
+
+    for base in ["✩ Legend-Tier", "★ Ashenlight-Tier", "Celestial-Tier",
+                 "Elite-Tier", "High-Tier", "Middle-Tier", "Low-Tier"]:
+        if tier_roles.get(base) in member_role_ids:
+            level_tier = base
+            break
+
+    if level_tier:
+        if tier_roles.get("[ ⁂ ]") in member_role_ids:
+            stars = " [ ⁂ ]"
+        elif tier_roles.get("[ ⁑ ]") in member_role_ids:
+            stars = " [ ⁑ ]"
+
+        embed.add_field(
+            name="**Level-Tier**",
+            value=f"{tier_emojis.get(level_tier, '')} {level_tier}{stars}",
+            inline=False
+        )
+
+    # ───── TEXTO FINAL ─────
+    if retired_detected:
+        embed.add_field(name="", value=f"> {retired_detected['text']}", inline=False)
+    elif current_rank == "Elder Gray Emperor":
+        embed.add_field(name="", value="> Founder, Owner and Emperor of The Grey Order", inline=False)
+    elif current_rank == "Gray Emperor":
+        embed.add_field(name="", value="> Leader and Emperor of the Grey Order", inline=False)
+    elif current_rank in ["Gray Lord", "Ashen Lord"]:
+        embed.add_field(name="", value="> Part of the council of The Grey Order", inline=False)
+    elif current_rank in ["Silver Knight", "Master", "Grandmaster", "Master of Balance"]:
+        embed.add_field(name="", value="From this rank onwards, promotions are decided by HR.", inline=False)
+    else:
+        if current_rank in rank_list:
+            idx = rank_list.index(current_rank)
+            if idx + 1 < len(rank_list):
+                next_rank = rank_list[idx + 1]
+                if next_rank in rank_requirements:
+                    req = rank_requirements[next_rank]
+                    req_text = (
+                        f"**Next rank**\n{rank_emojis.get(next_rank, '')} | {next_rank}\n"
+                        f"· _**{req.get('tp', 0)}** training points_\n"
+                        f"· _**{req.get('mp', 0)}** mission points_"
+                    )
+                    if req.get("tier"):
+                        req_text += f"\n· _**{req['tier']}** level_"
+                    embed.add_field(name="", value=req_text, inline=False)
+
+    embed.add_field(
+        name="", value="-# <:OficialTGO:1395904116072648764> The Gray Order", inline=False
+    )
+
+    msg = await interaction.followup.send(embed=embed)
+
+    await asyncio.sleep(30)
+    with contextlib.suppress(discord.Forbidden, discord.NotFound):
+        await msg.delete()
+
 
 # ───────────── /LOGS ─────────────
 LOG_CHANNEL_ID = 1398432802281750639  # Hidden channel for logs
 
-async def log_command_use(interaction: discord.Interaction):
+async def log_command_use(interaction: discord.Interaction, members_cache: dict[int, discord.Member] = {}):
     params = []
 
     if interaction.data.get("options"):
@@ -460,7 +444,8 @@ async def log_command_use(interaction: discord.Interaction):
 
             try:
                 if name == "member":
-                    user = await interaction.guild.fetch_member(int(value))
+                    # Primero buscar en cache, luego fetch si no está
+                    user = members_cache.get(int(value)) or await interaction.guild.fetch_member(int(value))
                     display_value = f"{user.mention} ({user})"
                 elif name == "level":
                     role = interaction.guild.get_role(int(value))
@@ -488,336 +473,294 @@ async def log_command_use(interaction: discord.Interaction):
             await log_channel.send(embed=embed)
         except Exception:
             pass  # Silenciar cualquier error al enviar logs
-
+            
 # ───────────── /addtp ─────────────
 @bot.tree.command(name="addtp", description="Add Training Points with automatic weighting")
 @app_commands.describe(
     mvp="Mentions for MVP (+3 each)",
     promo="Mentions for Promo (+2 each)",
     attended="Mentions for Attendance (+1 each)",
-    rollcall="Roll‑call message link",
+    rollcall="Roll-call message link",
 )
+@guild_command_wrapper(prefetch_members=True, delay=1.0)
 async def addtp(
     interaction: discord.Interaction,
     promo: str,
     rollcall: str,
     mvp: str = "",
     attended: str = "",
+    members_cache: dict[int, discord.Member] = {}
 ):
     caller = cast(discord.Member, interaction.user)
 
     if not has_basic_permission(caller):
-        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
+        await interaction.followup.send("❌ You lack permission.", ephemeral=True)
         return
 
     rollcall = rollcall.strip()
     if rollcall and "discord" not in rollcall:
-        await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
+        await interaction.followup.send("❌ Invalid roll-call link format.", ephemeral=True)
         return
 
-    await interaction.response.defer()
-    guild = interaction.guild
-    # ───── LOCK POR GUILD ─────
-    lock = get_tier_lock(guild.id)
-    async with lock:
+    # 🔹 Añadir 1 TP al caller
+    add_points(interaction.guild.id, caller.id, "tp", 1)
 
-        add_points(guild.id, caller.id, "tp", 1)  # +1 TP al ejecutor
-        embed_description = [f"{caller.mention} has added training points to:"]
-        any_valid_mentions = False
-        # Preparar lista de miembros con sus puntos
-        all_members = []
-        for cat, text in {"mvp": mvp, "promo": promo, "attended": attended}.items():
-            pts_to_add = POINT_VALUES.get(cat, 0)
-            if pts_to_add <= 0:
-                continue
-            for uid in MENTION_RE.findall(text):
-                all_members.append((int(uid), pts_to_add))
-        # ───── Prefetch de miembros ─────
-        guild_members = await get_guild_members(interaction.guild)
-        # Procesar en lotes de 10 con pausa
-        for i, (uid, pts) in enumerate(all_members, start=1):
-            member = guild_members.get(uid)
-            
-            if member:
-                any_valid_mentions = True
-                add_points(guild.id, member.id, "tp", pts)
-                embed_description.append(f"{member.mention} +{pts} TP")
-            if i % 10 == 0:
-                await asyncio.sleep(0.2)  # pausa cada 10 miembros
+    embed_description = [f"{caller.mention} has added training points to:"]
+    any_valid_mentions = False
 
-        if not any_valid_mentions:
-            await interaction.followup.send("ℹ️ No valid member mentions found.")
-            return
+    all_members = []
+    for cat, text in {"mvp": mvp, "promo": promo, "attended": attended}.items():
+        pts_to_add = POINT_VALUES.get(cat, 0)
+        if pts_to_add <= 0:
+            continue
+        for uid in MENTION_RE.findall(text):
+            all_members.append((int(uid), pts_to_add))
 
-        if rollcall:
-            embed_description.append(f"\n🔗 Rollcall: {rollcall}")
+    for i, (uid, pts) in enumerate(all_members, start=1):
+        member = members_cache.get(uid)
+        if member:
+            any_valid_mentions = True
+            add_points(interaction.guild.id, member.id, "tp", pts)
+            embed_description.append(f"{member.mention} +{pts} TP")
+        if i % 10 == 0:
+            await asyncio.sleep(0.2)
 
-        await log_command_use(interaction)
+    if not any_valid_mentions:
+        await interaction.followup.send("ℹ️ No valid member mentions found.", ephemeral=True)
+        return
 
-        embed = discord.Embed(
-            title="Training Points Added",
-            description="\n".join(embed_description),
-            color=discord.Color.green()
-        )
-        msg = await interaction.followup.send(embed=embed)
-        await asyncio.sleep(20)
-        with contextlib.suppress((discord.Forbidden, discord.NotFound)):
-            await msg.delete()
+    if rollcall:
+        embed_description.append(f"\n🔗 Rollcall: {rollcall}")
+
+    await log_command_use(interaction, members_cache=members_cache)
+
+    embed = discord.Embed(
+        title="Training Points Added",
+        description="\n".join(embed_description),
+        color=discord.Color.green()
+    )
+
+    msg = await interaction.followup.send(embed=embed)
+    await asyncio.sleep(20)
+    with contextlib.suppress(discord.Forbidden, discord.NotFound):
+        await msg.delete()
 
 # ───────────── /addmp ─────────────
 @bot.tree.command(name="addmp", description="Add Mission Points")
 @app_commands.describe(
     member="Member mentions",
     points="Points to add",
-    rollcall="Roll‑call message link"
+    rollcall="Roll-call message link"
 )
-async def addmp(interaction: discord.Interaction, member: str, points: int, rollcall: str = ""):
+@guild_command_wrapper(prefetch_members=True, delay=1.0)
+async def addmp(
+    interaction: discord.Interaction,
+    member: str,
+    points: int,
+    rollcall: str = "",
+    members_cache: dict[int, discord.Member] = {}
+):
     caller = cast(discord.Member, interaction.user)
-
     if not has_basic_permission(caller):
-        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
+        await interaction.followup.send("❌ You lack permission.", ephemeral=True)
         return
-
     rollcall = rollcall.strip()
     if rollcall and "discord" not in rollcall:
-        await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
+        await interaction.followup.send("❌ Invalid roll-call link format.", ephemeral=True)
         return
-
-    await interaction.response.defer()
-    guild = interaction.guild
-
-    lock = get_tier_lock(guild.id)
-    async with lock:
-
-        add_points(guild.id, caller.id, "mp", 1)  # +1 MP al ejecutor
-        embed_description = [f"{caller.mention} has added mission points to:"]
-        any_valid_mentions = False
-
-        all_members = []
-        for uid in MENTION_RE.findall(member):
-            all_members.append((int(uid), points))
-
-        # ───── Prefetch de miembros ─────
-        guild_members = await get_guild_members(interaction.guild)
-        for i, (uid, pts) in enumerate(all_members, start=1):
-            member_obj = guild_members.get(uid)
-            if member_obj:
-                any_valid_mentions = True
-                add_points(guild.id, member_obj.id, "mp", pts)
-                embed_description.append(f"{member_obj.mention} +{pts} MP")
-            if i % 10 == 0:
-                await asyncio.sleep(0.2)
-
-        if not any_valid_mentions:
-            await interaction.followup.send("ℹ️ No valid member mentions found.")
-            return
-        if rollcall:
-            embed_description.append(f"\n🔗 Rollcall: {rollcall}")
-        await log_command_use(interaction)
-
-        embed = discord.Embed(
-            title="Mission Points Added",
-            description="\n".join(embed_description),
-            color=discord.Color.blue()
-        )
-        msg = await interaction.followup.send(embed=embed)
-        await asyncio.sleep(20)
-        with contextlib.suppress((discord.Forbidden, discord.NotFound)):
-            await msg.delete()
+    add_points(interaction.guild.id, caller.id, "mp", 1)
+    embed_description = [f"{caller.mention} has added mission points to:"]
+    any_valid_mentions = False
+    all_members = [(int(uid), points) for uid in MENTION_RE.findall(member)]
+    for i, (uid, pts) in enumerate(all_members, start=1):
+        member_obj = members_cache.get(uid)
+        if member_obj:
+            any_valid_mentions = True
+            add_points(interaction.guild.id, member_obj.id, "mp", pts)
+            embed_description.append(f"{member_obj.mention} +{pts} MP")
+        if i % 10 == 0:
+            await asyncio.sleep(0.2)
+    if not any_valid_mentions:
+        await interaction.followup.send("ℹ️ No valid member mentions found.", ephemeral=True)
+        return
+    if rollcall:
+        embed_description.append(f"\n🔗 Rollcall: {rollcall}")
+    await log_command_use(interaction, members_cache=members_cache)
+    embed = discord.Embed(
+        title="Mission Points Added",
+        description="\n".join(embed_description),
+        color=discord.Color.blue()
+    )
+    msg = await interaction.followup.send(embed=embed)
+    await asyncio.sleep(20)
+    with contextlib.suppress(discord.Forbidden, discord.NotFound):
+        await msg.delete()
 
 
-# ───────────── /addra ───────────── 
+# ───────────── /addra ─────────────
 @bot.tree.command(name="addra", description="Add Raid Points (Rp) and Mission Points (Mp)")
 @app_commands.describe(
     members="Members to receive Raid Points",
-    rollcall="Roll‑call message link",
+    rollcall="Roll-call message link",
     extra="Extra members to receive +1 Mission Point (optional)",
 )
+@guild_command_wrapper(prefetch_members=True, delay=1.0)
 async def addra(
     interaction: discord.Interaction,
     members: str,
     rollcall: str,
     extra: str = "",
+    members_cache: dict[int, discord.Member] = {}
 ):
     caller = cast(discord.Member, interaction.user)
     if not has_basic_permission(caller):
-        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
+        await interaction.followup.send("❌ You lack permission.", ephemeral=True)
         return
 
     rollcall = rollcall.strip()
     if rollcall and "discord" not in rollcall:
-        await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
+        await interaction.followup.send("❌ Invalid roll-call link format.", ephemeral=True)
         return
 
     member_ids = [int(uid) for uid in MENTION_RE.findall(members)]
     extra_ids = [int(uid) for uid in MENTION_RE.findall(extra)] if extra else []
 
     if not member_ids and not extra_ids:
-        await interaction.response.send_message("❌ No valid member mentions found.", ephemeral=True)
+        await interaction.followup.send("❌ No valid member mentions found.", ephemeral=True)
         return
 
-    await interaction.response.defer()
-    lock = get_tier_lock(interaction.guild.id)  # lock global por guild
-    async with lock:
-        guild = interaction.guild
-        summary = []
+    summary = []
 
-        # Prefetch de miembros para no hacer múltiples fetch_member
-        guild_members = await get_guild_members(guild)
+    all_members = (
+        [(mid, "rp") for mid in member_ids] +
+        [(eid, "mp_extra") for eid in extra_ids]
+    )
 
-        # Combinar miembros de Rp y Mp extra
-        all_members = [(mid, "rp") for mid in member_ids] + [(eid, "mp_extra") for eid in extra_ids]
+    for i, (uid, cat) in enumerate(all_members, start=1):
+        member_obj = members_cache.get(uid)
+        if member_obj:
+            if cat == "rp":
+                add_points(interaction.guild.id, member_obj.id, "rp", 1)
+                summary.append(f"{member_obj.mention} +1 Rp")
+            elif cat == "mp_extra":
+                add_points(interaction.guild.id, member_obj.id, "mp", 1)
+                summary.append(f"{member_obj.mention} +1 Mp (extra)")
+        else:
+            summary.append(f"User ID {uid} not found in guild.")
 
-        for i, (uid, cat) in enumerate(all_members, start=1):
-            member = guild_members.get(uid)
-            if member:
-                if cat == "rp":
-                    add_points(guild.id, member.id, "rp", 1)
-                    summary.append(f"{member.mention} +1 Rp")
-                elif cat == "mp_extra":
-                    add_points(guild.id, member.id, "mp", 1)
-                    summary.append(f"{member.mention} +1 Mp (extra)")
-            else:
-                summary.append(f"User ID {uid} not found in guild.")
+        if i % 10 == 0:
+            await asyncio.sleep(0.3)
 
-            if i % 10 == 0:
-                await asyncio.sleep(0.3)  # ligera pausa cada 10 miembros
-        if rollcall:
-            summary.append(f"\n🔗 {rollcall}")
-        await log_command_use(interaction)
-        embed = discord.Embed(
-            title="Raid Points Added",
-            description="\n".join(summary),
-            color=discord.Color.dark_gold()
-        )
-        msg = await interaction.followup.send(embed=embed)
-        await asyncio.sleep(20)
-        with contextlib.suppress(discord.Forbidden, discord.NotFound):
-            await msg.delete()
+    if rollcall:
+        summary.append(f"\n🔗 {rollcall}")
+
+    await log_command_use(interaction, members_cache=members_cache)
+
+    embed = discord.Embed(
+        title="Raid Points Added",
+        description="\n".join(summary),
+        color=discord.Color.dark_gold()
+    )
+
+    msg = await interaction.followup.send(embed=embed)
+    await asyncio.sleep(20)
+    with contextlib.suppress(discord.Forbidden, discord.NotFound):
+        await msg.delete()
+
 
 # ───────────── /addwar ─────────────
 @bot.tree.command(name="addwar", description="Add War Points")
 @app_commands.describe(
     member="Member mentions",
     points="Points to add",
-    rollcall="Roll‑call message link"
+    rollcall="Roll-call message link"
 )
-async def addwar(interaction: discord.Interaction, member: str, points: int, rollcall: str = ""):
+@guild_command_wrapper(prefetch_members=True, delay=1.0)
+async def addwar(
+    interaction: discord.Interaction,
+    member: str,
+    points: int,
+    rollcall: str = "",
+    members_cache: dict[int, discord.Member] = {}
+):
     caller = cast(discord.Member, interaction.user)
-
     if not has_basic_permission(caller):
-        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
+        await interaction.followup.send("❌ You lack permission.", ephemeral=True)
         return
 
     rollcall = rollcall.strip()
     if rollcall and "discord" not in rollcall:
-        await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
+        await interaction.followup.send("❌ Invalid roll-call link format.", ephemeral=True)
         return
 
-    await interaction.response.defer()
-    guild = interaction.guild
+    summary = []
+    all_ids = [int(uid) for uid in MENTION_RE.findall(member)]
+    if not all_ids:
+        await interaction.followup.send("ℹ️ No valid member mentions found.", ephemeral=True)
+        return
 
-    lock = get_tier_lock(guild.id)
-    async with lock:
+    # Auto añadir 1 WP al caller
+    add_points(interaction.guild.id, caller.id, "wp", 1)
+    summary.append(f"{caller.mention} has added war points to:")
 
-        add_points(guild.id, caller.id, "wp", 1)
-        embed_description = [f"{caller.mention} has added war points to:"]
-        any_valid_mentions = False
+    for i, uid in enumerate(all_ids, start=1):
+        member_obj = members_cache.
 
-        all_members = []
-        for uid in MENTION_RE.findall(member):
-            all_members.append((int(uid), points))
-        # ───── Prefetch de miembros ─────
-        guild_members = await get_guild_members(interaction.guild)
-
-        for i, (uid, pts) in enumerate(all_members, start=1):
-            member_obj = guild_members.get(uid)
-            if member_obj:
-                any_valid_mentions = True
-                add_points(guild.id, member_obj.id, "wp", pts)
-                embed_description.append(f"{member_obj.mention} +{pts} WP")
-            if i % 10 == 0:
-                await asyncio.sleep(0.2)
-
-        if not any_valid_mentions:
-            await interaction.followup.send("ℹ️ No valid member mentions found.")
-            return
-
-        if rollcall:
-            embed_description.append(f"\n🔗 Rollcall: {rollcall}")
-        await log_command_use(interaction)
-        embed = discord.Embed(
-            title="War Points Added",
-            description="\n".join(embed_description),
-            color=discord.Color.red()
-        )
-        msg = await interaction.followup.send(embed=embed)
-        await asyncio.sleep(20)
-        with contextlib.suppress((discord.Forbidden, discord.NotFound)):
-            await msg.delete()
 
 # ───────────── /addeve ─────────────
 @bot.tree.command(name="addeve", description="Add Event Points")
 @app_commands.describe(
     member="Member mentions",
     points="Points to add",
-    rollcall="Roll‑call message link"
+    rollcall="Roll-call message link"
 )
 async def addeve(interaction: discord.Interaction, member: str, points: int, rollcall: str = ""):
     caller = cast(discord.Member, interaction.user)
-
     if not has_basic_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
-
     rollcall = rollcall.strip()
     if rollcall and "discord" not in rollcall:
-        await interaction.response.send_message("❌ Invalid roll‑call link format.", ephemeral=True)
+        await interaction.response.send_message("❌ Invalid roll-call link format.", ephemeral=True)
         return
-
-    await interaction.response.defer()
+    await interaction.response.defer(thinking=True)
+    status_msg = await interaction.followup.send(
+        "⏳ Processing event points…",
+        ephemeral=True
+    )
     guild = interaction.guild
-
     lock = get_tier_lock(guild.id)
     async with lock:
-
         add_points(guild.id, caller.id, "eve", 1)
         embed_description = [f"{caller.mention} has added event points to:"]
         any_valid_mentions = False
-
         all_members = []
         for uid in MENTION_RE.findall(member):
             all_members.append((int(uid), points))
-
-        # ───── Prefetch de miembros ─────
-        guild_members = await get_guild_members(interaction.guild)
-
+        guild_members = await get_guild_members(guild)
         for i, (uid, pts) in enumerate(all_members, start=1):
             member_obj = guild_members.get(uid)
             if member_obj:
                 any_valid_mentions = True
                 add_points(guild.id, member_obj.id, "eve", pts)
-                embed_description.append(f"{member_obj.mention} +{pts} Eve")
+                embed_description.append(f"{member_obj.mention} +{pts} Eve")
             if i % 10 == 0:
                 await asyncio.sleep(0.2)
-
         if not any_valid_mentions:
-            await interaction.followup.send("ℹ️ No valid member mentions found.")
+            await status_msg.edit(content="ℹ️ No valid member mentions found.")
             return
-
         if rollcall:
             embed_description.append(f"\n🔗 Rollcall: {rollcall}")
-
         await log_command_use(interaction)
-
         embed = discord.Embed(
             title="Event Points Added",
             description="\n".join(embed_description),
             color=discord.Color.purple()
         )
         msg = await interaction.followup.send(embed=embed)
+        await status_msg.delete()
         await asyncio.sleep(20)
-        with contextlib.suppress((discord.Forbidden, discord.NotFound)):
+        with contextlib.suppress(discord.Forbidden, discord.NotFound):
             await msg.delete()
 
 # ───────────── /addtier ─────────────
@@ -828,61 +771,53 @@ async def addeve(interaction: discord.Interaction, member: str, points: int, rol
     stars="Stars level, 2 or 3 (optional)",
     rollcall="Roll-call link",
 )
+@guild_command_wrapper(prefetch_members=True, delay=1.0)
 async def addtier(
     interaction: discord.Interaction,
     member: discord.Member,
     level: discord.Role,
-    rollcall: str,
+    rollcall: str = "",
     stars: app_commands.Range[int, 2, 3] | None = None,
+    members_cache: dict[int, discord.Member] = {}
 ):
     caller = cast(discord.Member, interaction.user)
     if not has_basic_permission(caller):
-        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
+        await interaction.followup.send("❌ You lack permission.", ephemeral=True)
         return
 
     rollcall = rollcall.strip()
     if rollcall and "discord" not in rollcall:
-        await interaction.response.send_message("❌ Invalid roll-call link format.", ephemeral=True)
+        await interaction.followup.send("❌ Invalid roll-call link format.", ephemeral=True)
         return
-
-    await interaction.response.defer()
-    # 🔒 Delay global anti-429 (1 segundo por guild)
-    await apply_guild_command_delay(interaction, delay=1.0)
-
-    level_name = level.name
-    tier_role_id = tier_roles.get(level_name)
-    if not tier_role_id:
-        msg = await interaction.followup.send("❌ Invalid tier level. Make sure you provide a valid Tier.")
-        await asyncio.sleep(20)
-        with contextlib.suppress((discord.Forbidden, discord.NotFound)):
-            await msg.delete()
-        return
-
-    valid_star_levels = {"Low-Tier", "Middle-Tier", "High-Tier", "Elite-Tier", "Celestial-Tier"}
-    if stars and level_name not in valid_star_levels:
-        msg = await interaction.followup.send(
-            "❌ Only Low-Tier, Middle-Tier, High-Tier, Elite-Tier and Celestial-Tier can receive stars."
-        )
-        await asyncio.sleep(15)
-        with contextlib.suppress((discord.Forbidden, discord.NotFound)):
-            await msg.delete()
-        return
-
-    await log_command_use(interaction)
 
     guild_roles = {role.id: role for role in interaction.guild.roles}
 
+    tier_role_id = tier_roles.get(level.name)
+    if not tier_role_id:
+        await interaction.followup.send("❌ Invalid tier level.", ephemeral=True)
+        return
+
+    valid_star_levels = {"Low-Tier", "Middle-Tier", "High-Tier", "Elite-Tier", "Celestial-Tier"}
+    if stars and level.name not in valid_star_levels:
+        await interaction.followup.send(
+            "❌ Only Low-Tier, Middle-Tier, High-Tier, Elite-Tier and Celestial-Tier can receive stars.",
+            ephemeral=True
+        )
+        return
+
+    await log_command_use(interaction, members_cache=members_cache)
+
+    # Remover roles de Tier previos
     roles_to_remove = [
         guild_roles[rid]
         for rid in tier_roles.values()
         if rid in guild_roles and guild_roles[rid] in member.roles
     ]
     if roles_to_remove:
-        try:
+        with contextlib.suppress(discord.HTTPException):
             await member.remove_roles(*roles_to_remove)
-        except discord.HTTPException:
-            pass
 
+    # Función segura para añadir roles
     async def safe_add_roles(member: discord.Member, *roles: discord.Role) -> list[str]:
         added = []
         try:
@@ -892,9 +827,11 @@ async def addtier(
             pass
         return added
 
+    # Añadir nuevo tier
     new_tier_role = guild_roles.get(tier_role_id)
     added_roles = await safe_add_roles(member, new_tier_role)
 
+    # Añadir stars si aplica
     if stars:
         star_label = "[ ⁑ ]" if stars == 2 else "[ ⁂ ]"
         star_role_id = tier_roles.get(star_label)
@@ -902,9 +839,7 @@ async def addtier(
         if star_role:
             added_roles += await safe_add_roles(member, star_role)
 
-    description_lines = [
-        f"{member.mention} has been assigned the Tier: **{level_name}**"
-    ]
+    description_lines = [f"{member.mention} has been assigned the Tier: **{level.name}**"]
     if stars:
         description_lines.append(f"Stars: **{stars}**")
     if added_roles:
@@ -919,14 +854,11 @@ async def addtier(
     )
     msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(20)
-    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
+    with contextlib.suppress(discord.Forbidden, discord.NotFound):
         await msg.delete()
 
-# ───────────── /tierList - fixed ─────────────
-import asyncio
-import discord
-from discord import app_commands
 
+# ───────────── /tierList - fixed ─────────────
 tierlist_locks: dict[str, asyncio.Lock] = {}
 guild_command_locks: dict[int, asyncio.Lock] = {}  # 🔒 lock por guild
 
@@ -1045,7 +977,7 @@ class TierListView(discord.ui.View):
             except discord.NotFound:
                 pass
 
-# ───────────── /tierlist command ─────────────
+# ───────────── /tierList - fixed (optimized) ─────────────
 @bot.tree.command(name="tierlist", description="Show top members sorted by Tier and group rank")
 @app_commands.describe(tier="Optional: filter by a specific Tier")
 @app_commands.choices(tier=[
@@ -1057,12 +989,15 @@ class TierListView(discord.ui.View):
     app_commands.Choice(name="Middle-Tier", value="Middle-Tier"),
     app_commands.Choice(name="Low-Tier", value="Low-Tier"),
 ])
-async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[str] | None = None):
-    await interaction.response.defer(thinking=True)
-    await apply_guild_command_delay(interaction, delay=1.0)
-
+@guild_command_wrapper(prefetch_members=True, delay=1.0)
+async def tierlist(
+    interaction: discord.Interaction,
+    tier: app_commands.Choice[str] | None = None,
+    members_cache: dict[int, discord.Member] = {}
+):
+    # ⬅️ members_cache evita fetch repetido
     guild = interaction.guild
-    members = guild.members  # ⬅️ Aquí puedes reemplazar por get_guild_members si quieres cache
+    members = members_cache if members_cache else {m.id: m for m in guild.members}
 
     tier_order = [
         "✩ Legend-Tier", "★ Ashenlight-Tier", "Celestial-Tier", "Elite-Tier",
@@ -1092,7 +1027,7 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
         return None
 
     members_with_tier = []
-    for member in members:
+    for member in members.values():
         tier_name = get_member_tier(member)
         if tier_name:
             base = tier_name.split(" [")[0].strip()
@@ -1101,7 +1036,7 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
                 members_with_tier.append((member, tier_name, rank))
 
     if not members_with_tier:
-        await interaction.edit_original_response(content="No members with Tier roles found.", embed=None)
+        await interaction.followup.send("No members with Tier roles found.", ephemeral=True)
         return
 
     def parse_tier_components(tier_name: str):
@@ -1117,11 +1052,9 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
     def rank_index(rank_name: str) -> int:
         return group_ranks_order.index(rank_name) if rank_name in group_ranks_order else len(group_ranks_order)
 
-    members_with_tier.sort(key=lambda x: (
-        parse_tier_components(x[1]),
-        rank_index(x[2])
-    ))
+    members_with_tier.sort(key=lambda x: (parse_tier_components(x[1]), rank_index(x[2])))
 
+    # Determinar posición del invocador
     invoker_pos = None
     invoker_id = interaction.user.id
     for i, (member, _, _) in enumerate(members_with_tier, start=1):
@@ -1129,6 +1062,7 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
             invoker_pos = i
             break
 
+    # Construir líneas del leaderboard
     lines = []
     for i, (member, tier_name, _) in enumerate(members_with_tier, start=1):
         base_tier = tier_name.split(" [")[0].strip()
@@ -1159,6 +1093,7 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
     wp="War Points (+/-)",
     rp="Raid Points (+/-)"
 )
+@guild_command_wrapper(prefetch_members=True, delay=1.0)
 async def addpoints(
     interaction: discord.Interaction,
     member: discord.Member,
@@ -1167,86 +1102,55 @@ async def addpoints(
     eve: int = 0,
     wp: int = 0,
     rp: int = 0,
+    members_cache: dict[int, discord.Member] = {}
 ):
     caller = cast(discord.Member, interaction.user)
     if not has_full_permission(caller):
-        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
+        await interaction.followup.send("❌ You lack permission.", ephemeral=True)
         return
 
     points_map = {"tp": tp, "mp": mp, "eve": eve, "wp": wp, "rp": rp}
     if all(val == 0 for val in points_map.values()):
-        await interaction.response.send_message("❌ You must specify at least one point value.", ephemeral=True)
+        await interaction.followup.send("❌ You must specify at least one point value.", ephemeral=True)
         return
 
-    await interaction.response.defer()
-    guild_id = interaction.guild.id
     summary = []
-    # 🔒 Lock por guild para evitar 429
-    lock = get_tier_lock(guild_id)
-    async with lock:
-        # 🔒 Delay global anti-429 (1 segundo por guild)
-        await apply_guild_command_delay(interaction, delay=1.0)
+    guild_id = interaction.guild.id
 
-        doc = get_user_data(guild_id, member.id)
-
-        for key, val in points_map.items():
-            if val != 0:
-                current = doc.get(key, 0)
-                if val < 0:  # Quitando puntos
-                    remove_amt = min(-val, current)
-                    if remove_amt > 0:
-                        try:
-                            new_val = add_points(
-                                guild_id,
-                                member.id,
-                                key,
-                                -remove_amt
-                            )
-                            summary.append(f"{member.mention} -{remove_amt} {key.upper()} → **{new_val}**")
-                        except Exception as e:
-                            summary.append(f"❌ Failed to remove {key.upper()} from {member.mention}: {e}")
-                    else:
-                        summary.append(f"{member.mention} has no {key.upper()} to remove.")
-                else:  # Sumando puntos
+    # Ajuste seguro de puntos
+    for key, val in points_map.items():
+        if val != 0:
+            current = get_user_data(guild_id, member.id).get(key, 0)
+            if val < 0:  # quitando puntos
+                remove_amt = min(-val, current)
+                if remove_amt > 0:
                     try:
-                        new_val = add_points(
-                            guild_id,
-                            member.id,
-                            key,
-                            val
-                        )
-                        summary.append(f"{member.mention} +{val} {key.upper()} → **{new_val}**")
+                        new_val = add_points(guild_id, member.id, key, -remove_amt)
+                        summary.append(f"{member.mention} -{remove_amt} {key.upper()} → **{new_val}**")
                     except Exception as e:
-                        summary.append(f"❌ Failed to add {key.upper()} to {member.mention}: {e}")
+                        summary.append(f"❌ Failed to remove {key.upper()} from {member.mention}: {e}")
+                else:
+                    summary.append(f"{member.mention} has no {key.upper()} to remove.")
+            else:  # sumando puntos
+                try:
+                    new_val = add_points(guild_id, member.id, key, val)
+                    summary.append(f"{member.mention} +{val} {key.upper()} → **{new_val}**")
+                except Exception as e:
+                    summary.append(f"❌ Failed to add {key.upper()} to {member.mention}: {e}")
 
-        if any("→" in s for s in summary):
-            await log_command_use(interaction)
+    if any("→" in s for s in summary):
+        await log_command_use(interaction, members_cache=members_cache)
 
-        embed = discord.Embed(
-            title="📊 Points Adjusted",
-            description="\n".join(summary),
-            color=discord.Color.gold()
-        )
-        msg = await interaction.followup.send(embed=embed)
-        await asyncio.sleep(20)
-        with contextlib.suppress((discord.Forbidden, discord.NotFound)):
-            await msg.delete()
+    embed = discord.Embed(
+        title="📊 Points Adjusted",
+        description="\n".join(summary),
+        color=discord.Color.gold()
+    )
+    msg = await interaction.followup.send(embed=embed)
+    await asyncio.sleep(20)
+    with contextlib.suppress((discord.Forbidden, discord.NotFound)):
+        await msg.delete()
 
-# ───────────── Autorización de roles ─────────────
-BASIC_ROLE_IDS = {
-    1381235438563491841,  # LEADERSHIP
-    1399751111602212884,  # Gray Council
-    1381244026790871111,  # TGO | Staff
-}
-FULL_ROLE_IDS = {
-    1381235438563491841,  # LEADERSHIP
-    1399751111602212884,  # Gray Council
-}
-def has_permission(member: discord.Member, allowed_roles: set[int]) -> bool:
-    """Check if member has at least one role in allowed_roles."""
-    return any(role.id in allowed_roles for role in member.roles)
-has_basic_permission = lambda m: has_permission(m, BASIC_ROLE_IDS)
-has_full_permission = lambda m: has_permission(m, FULL_ROLE_IDS)
 
 # ───────────── Eventos ─────────────
 @bot.event
@@ -1269,7 +1173,6 @@ threading.Thread(target=run_flask, daemon=True).start()
 # ───────────── Error Handler ─────────────
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-    import traceback
     traceback.print_exc()
     async def safe_send(msg: str):
         try:
@@ -1303,10 +1206,5 @@ except discord.errors.HTTPException as e:
     sys.exit(1)
 except Exception as e:
     print(f"❌ Fatal error running bot: {e}", flush=True)
-    import traceback
     traceback.print_exc()
     sys.exit(1)
-
-
-
-
