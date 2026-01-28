@@ -521,7 +521,7 @@ async def addtp(
     lock = get_tier_lock(guild.id)
     async with lock:
 
-        add_points(guild.id, caller.id, "tp", 1, reason="Executed /addtp")  # +1 TP al ejecutor
+        add_points(guild.id, caller.id, "tp", 1)  # +1 TP al ejecutor
         embed_description = [f"{caller.mention} has added training points to:"]
         any_valid_mentions = False
         # Preparar lista de miembros con sus puntos
@@ -540,7 +540,7 @@ async def addtp(
             
             if member:
                 any_valid_mentions = True
-                add_points(guild.id, member.id, "tp", pts, reason="Executed /addtp")
+                add_points(guild.id, member.id, "tp", pts)
                 embed_description.append(f"{member.mention} +{pts} TP")
             if i % 10 == 0:
                 await asyncio.sleep(0.2)  # pausa cada 10 miembros
@@ -589,7 +589,7 @@ async def addmp(interaction: discord.Interaction, member: str, points: int, roll
     lock = get_tier_lock(guild.id)
     async with lock:
 
-        add_points(guild.id, caller.id, "mp", 1, reason="Executed /addmp")  # +1 MP al ejecutor
+        add_points(guild.id, caller.id, "mp", 1)  # +1 MP al ejecutor
         embed_description = [f"{caller.mention} has added mission points to:"]
         any_valid_mentions = False
 
@@ -603,7 +603,7 @@ async def addmp(interaction: discord.Interaction, member: str, points: int, roll
             member_obj = guild_members.get(uid)
             if member_obj:
                 any_valid_mentions = True
-                add_points(guild.id, member_obj.id, "mp", pts, reason="Executed /addmp")
+                add_points(guild.id, member_obj.id, "mp", pts)
                 embed_description.append(f"{member_obj.mention} +{pts} MP")
             if i % 10 == 0:
                 await asyncio.sleep(0.2)
@@ -624,6 +624,7 @@ async def addmp(interaction: discord.Interaction, member: str, points: int, roll
         await asyncio.sleep(20)
         with contextlib.suppress((discord.Forbidden, discord.NotFound)):
             await msg.delete()
+
 
 # ───────────── /addra ───────────── 
 @bot.tree.command(name="addra", description="Add Raid Points (Rp) and Mission Points (Mp)")
@@ -671,10 +672,10 @@ async def addra(
             member = guild_members.get(uid)
             if member:
                 if cat == "rp":
-                    add_points(guild.id, member.id, "rp", 1, reason=f"{caller} executed /addra")
+                    add_points(guild.id, member.id, "rp", 1)
                     summary.append(f"{member.mention} +1 Rp")
                 elif cat == "mp_extra":
-                    add_points(guild.id, member.id, "mp", 1, reason=f"{caller} executed /addra")
+                    add_points(guild.id, member.id, "mp", 1)
                     summary.append(f"{member.mention} +1 Mp (extra)")
             else:
                 summary.append(f"User ID {uid} not found in guild.")
@@ -719,14 +720,13 @@ async def addwar(interaction: discord.Interaction, member: str, points: int, rol
     lock = get_tier_lock(guild.id)
     async with lock:
 
-        add_points(guild.id, caller.id, "wp", 1, reason="Executed /addwar")
+        add_points(guild.id, caller.id, "wp", 1)
         embed_description = [f"{caller.mention} has added war points to:"]
         any_valid_mentions = False
 
         all_members = []
         for uid in MENTION_RE.findall(member):
             all_members.append((int(uid), points))
-
         # ───── Prefetch de miembros ─────
         guild_members = await get_guild_members(interaction.guild)
 
@@ -734,7 +734,7 @@ async def addwar(interaction: discord.Interaction, member: str, points: int, rol
             member_obj = guild_members.get(uid)
             if member_obj:
                 any_valid_mentions = True
-                add_points(guild.id, member_obj.id, "wp", pts, reason="Executed /addwar")
+                add_points(guild.id, member_obj.id, "wp", pts)
                 embed_description.append(f"{member_obj.mention} +{pts} WP")
             if i % 10 == 0:
                 await asyncio.sleep(0.2)
@@ -745,9 +745,7 @@ async def addwar(interaction: discord.Interaction, member: str, points: int, rol
 
         if rollcall:
             embed_description.append(f"\n🔗 Rollcall: {rollcall}")
-
         await log_command_use(interaction)
-
         embed = discord.Embed(
             title="War Points Added",
             description="\n".join(embed_description),
@@ -783,7 +781,7 @@ async def addeve(interaction: discord.Interaction, member: str, points: int, rol
     lock = get_tier_lock(guild.id)
     async with lock:
 
-        add_points(guild.id, caller.id, "eve", 1, reason="Executed /addeve")
+        add_points(guild.id, caller.id, "eve", 1)
         embed_description = [f"{caller.mention} has added event points to:"]
         any_valid_mentions = False
 
@@ -798,7 +796,7 @@ async def addeve(interaction: discord.Interaction, member: str, points: int, rol
             member_obj = guild_members.get(uid)
             if member_obj:
                 any_valid_mentions = True
-                add_points(guild.id, member_obj.id, "eve", pts, reason="Executed /addeve")
+                add_points(guild.id, member_obj.id, "eve", pts)
                 embed_description.append(f"{member_obj.mention} +{pts} Eve")
             if i % 10 == 0:
                 await asyncio.sleep(0.2)
@@ -851,8 +849,6 @@ async def addtier(
     # 🔒 Delay global anti-429 (1 segundo por guild)
     await apply_guild_command_delay(interaction, delay=1.0)
 
-    await log_command_use(interaction)
-
     level_name = level.name
     tier_role_id = tier_roles.get(level_name)
     if not tier_role_id:
@@ -871,6 +867,8 @@ async def addtier(
         with contextlib.suppress((discord.Forbidden, discord.NotFound)):
             await msg.delete()
         return
+
+    await log_command_use(interaction)
 
     guild_roles = {role.id: role for role in interaction.guild.roles}
 
@@ -974,11 +972,15 @@ class TierListView(discord.ui.View):
         page_text = "\n".join(page_content)
 
         embed = discord.Embed(
-            title="# 🏆 TIER LEADERBOARD",
-            description=f"{filter_text}\n-# ─────────────────────────\n{page_text}",
+            title="",
+            description=(
+                "# 🏆 TIER LEADERBOARD\n"
+                f"{filter_text}\n"
+                "-# ─────────────────────────\n"
+                + page_text
+            ),
             color=color
         )
-
         footer_text = f"Page {self.current_page + 1}/{len(self.pages)}"
         if self.invoker_pos:
             embed.set_footer(text=f"Your position is: {self.invoker_pos}\n{footer_text}")
@@ -1147,7 +1149,6 @@ async def tierlist(interaction: discord.Interaction, tier: app_commands.Choice[s
     view = TierListView(pages=pages, invoker_pos=invoker_pos, filter_name=tier.value if tier else None)
     await view.send_initial(interaction)
 
-
 # ───────────── /addpoints ─────────────
 @bot.tree.command(name="addpoints", description="Add or remove points (TP, MP, Eve, Wp, Rp) from a member (Admin only)")
 @app_commands.describe(
@@ -1199,8 +1200,7 @@ async def addpoints(
                                 guild_id,
                                 member.id,
                                 key,
-                                -remove_amt,
-                                reason=f"Adjusted by {caller.id} via /addpoints"
+                                -remove_amt
                             )
                             summary.append(f"{member.mention} -{remove_amt} {key.upper()} → **{new_val}**")
                         except Exception as e:
@@ -1213,8 +1213,7 @@ async def addpoints(
                             guild_id,
                             member.id,
                             key,
-                            val,
-                            reason=f"Adjusted by {caller.id} via /addpoints"
+                            val
                         )
                         summary.append(f"{member.mention} +{val} {key.upper()} → **{new_val}**")
                     except Exception as e:
@@ -1307,6 +1306,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
