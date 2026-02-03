@@ -408,7 +408,6 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
 
 
 # ───────────── /LOGS ─────────────
-# ───────────── /LOGS ─────────────
 LOG_CHANNEL_ID = 1398432802281750639  # Hidden channel for logs
 
 async def log_command_use(interaction: discord.Interaction):
@@ -534,13 +533,13 @@ async def addmp(
     interaction: discord.Interaction,
     member: str,
     points: int,
-    rollcall: str = "",
+    rollcall: str,
 ):
     caller = cast(discord.Member, interaction.user)
     if not has_basic_permission(caller):
-        await interaction.followup.send("❌ You lack permission.", ephemeral=True)
+        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
-        
+
     await interaction.response.defer(ephemeral=False)
 
     rollcall = rollcall.strip()
@@ -569,15 +568,18 @@ async def addmp(
 
     if rollcall:
         embed_description.append(f"\n🔗 Rollcall: {rollcall}")
-    await log_command_use(interaction) 
+
+    await log_command_use(interaction)
 
     embed = discord.Embed(
         title="Mission Points Added",
         description="\n".join(embed_description),
         color=discord.Color.blue()
     )
+
     msg = await interaction.followup.send(embed=embed)
     await asyncio.sleep(20)
+
     with contextlib.suppress(discord.Forbidden, discord.NotFound):
         await msg.delete()
 
@@ -666,7 +668,7 @@ async def addwar(
     interaction: discord.Interaction,
     member: str,
     points: int,
-    rollcall: str = "",
+    rollcall: str,
 ):
     caller = cast(discord.Member, interaction.user)
     if not has_basic_permission(caller):
@@ -724,7 +726,7 @@ async def addwar(
     points="Points to add",
     rollcall="Roll-call message link"
 )
-async def addeve(interaction: discord.Interaction, member: str, points: int, rollcall: str = ""):
+async def addeve(interaction: discord.Interaction, member: str, points: int, rollcall: str):
     caller = cast(discord.Member, interaction.user)
 
     if not has_basic_permission(caller):
@@ -1288,6 +1290,7 @@ except Exception as e:
     print(f"❌ Fatal error running bot: {e}", flush=True)
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
