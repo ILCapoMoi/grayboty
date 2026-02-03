@@ -472,6 +472,8 @@ async def addtp(
     if not has_basic_permission(caller):
         await interaction.followup.send("❌ You lack permission.", ephemeral=True)
         return
+        
+    await interaction.response.defer(ephemeral=False)
 
     rollcall = rollcall.strip()
     if rollcall and "discord" not in rollcall:
@@ -538,12 +540,13 @@ async def addmp(
     if not has_basic_permission(caller):
         await interaction.followup.send("❌ You lack permission.", ephemeral=True)
         return
+        
+    await interaction.response.defer(ephemeral=False)
 
     rollcall = rollcall.strip()
     if rollcall and "discord" not in rollcall:
         await interaction.followup.send("❌ Invalid roll-call link format.", ephemeral=True)
         return
-
     # 🔹 Añadir 1 MP al caller
     add_points(interaction.guild.id, caller.id, "mp", 1)
 
@@ -597,6 +600,8 @@ async def addra(
     if not has_basic_permission(caller):
         await interaction.followup.send("❌ You lack permission.", ephemeral=True)
         return
+
+    await interaction.response.defer(ephemeral=False)
 
     rollcall = rollcall.strip()
     if rollcall and "discord" not in rollcall:
@@ -668,6 +673,8 @@ async def addwar(
         await interaction.followup.send("❌ You lack permission.", ephemeral=True)
         return
 
+    await interaction.response.defer(ephemeral=False)
+
     rollcall = rollcall.strip()
     if rollcall and "discord" not in rollcall:
         await interaction.followup.send("❌ Invalid roll-call link format.", ephemeral=True)
@@ -723,6 +730,8 @@ async def addeve(interaction: discord.Interaction, member: str, points: int, rol
     if not has_basic_permission(caller):
         await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
         return
+
+    await interaction.response.defer(ephemeral=False)
 
     rollcall = rollcall.strip()
     if rollcall and "discord" not in rollcall:
@@ -805,6 +814,8 @@ async def addtier(
     if not has_basic_permission(caller):
         await interaction.followup.send("❌ You lack permission.", ephemeral=True)
         return
+
+    await interaction.response.defer(ephemeral=False)
 
     rollcall = rollcall.strip()
     if rollcall and "discord" not in rollcall:
@@ -1023,6 +1034,7 @@ async def tierlist(
     interaction: discord.Interaction,
     tier: app_commands.Choice[str] | None = None,
 ):
+    await interaction.response.defer(ephemeral=False)
 
     guild = interaction.guild
     members = {m.id: m for m in guild.members}
@@ -1167,6 +1179,9 @@ async def addpoints(
     if not has_full_permission(caller):
         await interaction.followup.send("❌ You lack permission.", ephemeral=True)
         return
+
+    await interaction.response.defer(ephemeral=False)
+
     points_map = {"tp": tp, "mp": mp, "eve": eve, "wp": wp, "rp": rp}
     if all(val == 0 for val in points_map.values()):
         await interaction.followup.send("❌ You must specify at least one point value.", ephemeral=True)
@@ -1273,5 +1288,6 @@ except Exception as e:
     print(f"❌ Fatal error running bot: {e}", flush=True)
     traceback.print_exc()
     sys.exit(1)
+
 
 
