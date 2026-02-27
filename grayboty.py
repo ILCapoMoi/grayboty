@@ -134,9 +134,9 @@ rank_emojis = {
     "Silver Knight": "<:SilverKnight:1384874305363513425>",
     "Master": "<:trial_master:1390000479970263100>",
     "Grandmaster": "<:grm:1384494486222147654>",
-    "Master of Balance": "<:Mbalance:1384835972813820057>",
+    "Master of Balance": "<:Mbalance:1476730777684414494>",
     "Gray Lord": "<:GrayLord:1395372415856410686>",
-    "Ashen Lord": "<:AshenLord:1395372378728431626>",
+    "Ashen Lord": "<:AshenLord:1476731612237533434>",
     "Gray Emperor": "<:GrayEmp:1429396732269035622>",
     "Elder Gray Emperor": "<:ElderEmp:1429396655085715498>",
 }
@@ -732,15 +732,13 @@ async def addeve(interaction: discord.Interaction, member: str, points: int, rol
     caller = cast(discord.Member, interaction.user)
 
     if not has_basic_permission(caller):
-        await interaction.response.send_message("❌ You lack permission.", ephemeral=True)
+        await interaction.followup.send("❌ You lack permission.", ephemeral=True)
         return
 
     rollcall = rollcall.strip()
     if rollcall and "discord" not in rollcall:
-        await interaction.response.send_message("❌ Invalid roll-call link format.", ephemeral=True)
+        await interaction.followup.send("❌ Invalid roll-call link format.", ephemeral=True)
         return
-
-    await interaction.response.defer(thinking=True)
 
     status_msg = await interaction.followup.send(
         "⏳ Processing event points…",
@@ -1289,3 +1287,4 @@ except Exception as e:
     print(f"❌ Fatal error running bot: {e}", flush=True)
     traceback.print_exc()
     sys.exit(1)
+
