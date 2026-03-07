@@ -374,11 +374,11 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     if retired_detected:
         embed.add_field(name="", value=f"> {retired_detected['text']}", inline=False)
     elif current_rank == "Elder Gray Emperor":
-        embed.add_field(name="", value="> Founder, Owner and Emperor of The Grey Order", inline=False)
+        embed.add_field(name="", value="> Founder, Owner and Emperor of The Gray Order", inline=False)
     elif current_rank == "Gray Emperor":
-        embed.add_field(name="", value="> Leader and Emperor of the Grey Order", inline=False)
+        embed.add_field(name="", value="> Leader and Emperor of the Gray Order", inline=False)
     elif current_rank in ["Gray Lord", "Ashen Lord"]:
-        embed.add_field(name="", value="> Part of the council of The Grey Order", inline=False)
+        embed.add_field(name="", value="> Part of the council of The Gray Order", inline=False)
     elif current_rank in ["Silver Knight", "Master", "Grandmaster", "Master of Balance"]:
         embed.add_field(name="", value="From this rank onwards, promotions are decided by HR.", inline=False)
     else:
@@ -1287,4 +1287,5 @@ except Exception as e:
     print(f"❌ Fatal error running bot: {e}", flush=True)
     traceback.print_exc()
     sys.exit(1)
+
 
