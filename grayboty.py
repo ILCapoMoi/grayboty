@@ -306,7 +306,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
 
     Moi = 1419415839471304856
     Michi = 1475886829709299844
-    rigged_full_medals = {LEADER, Michi}
+    rigged_full_medals = {Moi, Michi}
     if any(role.id in rigged_full_medals for role in member.roles):
         user_medals_full = list(medal_roles.values())
     else:
@@ -325,7 +325,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     # ─ RETIRED ROLES ─
     retired_roles = [
         {"id": 1413828641397149716, "name": "Emeritus Emperor", "subtitle": "\u200b",
-         "emoji": "<:RetiredTGO:1429142210301005904>", "text": "Once crowned, forever eternal."},
+         "emoji": "<:RetiredTGO:1480267119974158528>", "text": "Once crowned, forever eternal."},
         {"id": 1413829540987277332, "name": "Elder of Council", "subtitle": "\u200b",
          "emoji": "<:RetiredCo:1413856505987596380>", "text": "Their wisdom echoes in every council hall."},
         {"id": 1381562883803971605, "name": "Retired", "subtitle": "\u200b",
@@ -1291,5 +1291,6 @@ except Exception as e:
     print(f"❌ Fatal error running bot: {e}", flush=True)
     traceback.print_exc()
     sys.exit(1)
+
 
 
