@@ -122,7 +122,7 @@ async def on_app_command_error(
 rank_list = [
     "Initiate", "Acolyte", "Disciple", "Seeker", "Knight", "Gray Knight",
     "Silver Knight", "Master", "Grandmaster", "Master of Balance",
-    "Gray Lord", "Ashen Lord", "Gray Lady", "Gray Emperor", "Elder Gray Emperor"
+    "Gray Lord", "Ashen Lord", "Gray Emperor", "Elder Gray Emperor"
 ]
 rank_emojis = {
     "Initiate": "<:Initate:1384843420316729435>",
@@ -137,7 +137,6 @@ rank_emojis = {
     "Master of Balance": "<:Mbalance:1476730777684414494>",
     "Gray Lord": "<:GrayLord:1395372415856410686>",
     "Ashen Lord": "<:AshenLord:1476731612237533434>",
-    "Gray Lady": "<:GrayLady:1475886829709299844>",
     "Gray Emperor": "<:GrayEmp:1429396732269035622>",
     "Elder Gray Emperor": "<:ElderEmp:1429396655085715498>",
 }
@@ -199,7 +198,6 @@ tier_emojis = {
 group_ranks_order = [
     "Elder Gray Emperor",
     "Gray Emperor",
-    "Gray Lady",
     "Ashen Lord",
     "Gray Lord",
     "Master of Balance",
@@ -305,7 +303,7 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     user_medals_full = []
 
     Moi = 1419415839471304856
-    Michi = 1475886829709299844
+    Michi = 1381600712353513472
     rigged_full_medals = {Moi, Michi}
     if any(role.id in rigged_full_medals for role in member.roles):
         user_medals_full = list(medal_roles.values())
@@ -326,6 +324,8 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     retired_roles = [
         {"id": 1413828641397149716, "name": "Emeritus Emperor", "subtitle": "\u200b",
          "emoji": "<:RetiredTGO:1480267119974158528>", "text": "Once crowned, forever eternal."},
+        {"id": 1381600712353513472, "name": "Gray Lady", "subtitle": "\u200b",
+         "emoji": "<:GrayLady:1475886829709299844>", "text": "Glorious, she keeps the sacred balance."},
         {"id": 1413829540987277332, "name": "Elder of Council", "subtitle": "\u200b",
          "emoji": "<:RetiredCo:1413856505987596380>", "text": "Their wisdom echoes in every council hall."},
         {"id": 1381562883803971605, "name": "Retired", "subtitle": "\u200b",
@@ -1291,6 +1291,7 @@ except Exception as e:
     print(f"❌ Fatal error running bot: {e}", flush=True)
     traceback.print_exc()
     sys.exit(1)
+
 
 
 
