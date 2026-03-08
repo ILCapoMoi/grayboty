@@ -122,7 +122,7 @@ async def on_app_command_error(
 rank_list = [
     "Initiate", "Acolyte", "Disciple", "Seeker", "Knight", "Gray Knight",
     "Silver Knight", "Master", "Grandmaster", "Master of Balance",
-    "Gray Lord", "Ashen Lord", "Gray Emperor", "Elder Gray Emperor"
+    "Gray Lord", "Ashen Lord", "Gray Lady", "Gray Emperor", "Elder Gray Emperor"
 ]
 rank_emojis = {
     "Initiate": "<:Initate:1384843420316729435>",
@@ -1291,4 +1291,5 @@ except Exception as e:
     print(f"❌ Fatal error running bot: {e}", flush=True)
     traceback.print_exc()
     sys.exit(1)
+
 
