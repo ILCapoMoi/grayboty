@@ -137,6 +137,7 @@ rank_emojis = {
     "Master of Balance": "<:Mbalance:1476730777684414494>",
     "Gray Lord": "<:GrayLord:1395372415856410686>",
     "Ashen Lord": "<:AshenLord:1476731612237533434>",
+    "Gray Lady": "<:GrayLady:1475886829709299844>",
     "Gray Emperor": "<:GrayEmp:1429396732269035622>",
     "Elder Gray Emperor": "<:ElderEmp:1429396655085715498>",
 }
@@ -152,11 +153,11 @@ def get_highest_rank(member: discord.Member) -> str:
 # ───────────── REQUISITOS DE RANGO ─────────────
 rank_requirements = {
     "Acolyte": {"tp": 1},
-    "Disciple": {"tp": 5, "mp": 3, "tier": "Low-Tier"},
+    "Disciple": {"tp": 6, "mp": 3, "tier": "Low-Tier"},
     "Seeker": {"tp": 12, "mp": 5, "tier": "Low-Tier"},
-    "Knight": {"tp": 18, "mp": 9, "tier": "Middle-Tier"},
-    "Gray Knight": {"tp": 24, "mp": 12, "tier": "Middle-Tier [ ⁑ ]"},
-    "Silver Knight": {"tp": 30, "mp": 18, "tier": "Middle-Tier [ ⁂ ]"}
+    "Knight": {"tp": 22, "mp": 12, "tier": "Middle-Tier"},
+    "Gray Knight": {"tp": 28, "mp": 16},
+    "Silver Knight": {"tp": 35, "mp": 20, "tier": "Above Middle-Tier"}
 }
 
 # ───────────── MEDALLAS DE HONOR ─────────────
@@ -198,6 +199,7 @@ tier_emojis = {
 group_ranks_order = [
     "Elder Gray Emperor",
     "Gray Emperor",
+    "Gray Lady",
     "Ashen Lord",
     "Gray Lord",
     "Master of Balance",
@@ -302,8 +304,10 @@ async def showprofile(interaction: discord.Interaction, member: discord.Member |
     glory_emoji = "<:Glory:1401695802660749362>"
     user_medals_full = []
 
-    LEADER = 1419415839471304856
-    if discord.utils.get(member.roles, id=LEADER):
+    Moi = 1419415839471304856
+    Michi = 1475886829709299844
+    rigged_full_medals = {LEADER, Michi}
+    if any(role.id in rigged_full_medals for role in member.roles):
         user_medals_full = list(medal_roles.values())
     else:
         for role_id, emoji in medal_roles.items():
@@ -1287,3 +1291,4 @@ except Exception as e:
     print(f"❌ Fatal error running bot: {e}", flush=True)
     traceback.print_exc()
     sys.exit(1)
+
